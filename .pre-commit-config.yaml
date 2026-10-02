@@ -6,11 +6,11 @@ repos:
     hooks:
       - id: black
         name: black
-        entry: .venv/Scripts/python.exe -m black
+        entry: '''.venv\Scripts\black.exe'''
         language: system
         types: [python]
       - id: flake8
         name: flake8
-        entry: .venv/Scripts/python.exe -m flake8
+        entry: '''.venv\Scripts\flake8.exe'''
         language: system
         types: [python]
