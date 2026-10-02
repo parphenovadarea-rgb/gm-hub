@@ -1,0 +1,5 @@
+[flake8]
+max-line-length = 88
+# E203 конфликтует с форматированием black
+extend-ignore = E203
+exclude = .git,__pycache__,.venv
