@@ -1,0 +1,9 @@
+[project]
+name = "gm-hub"
+version = "0.1.0"
+description = "Ассистент ведущего настольных ролевых игр Game Master Hub"
+requires-python = ">=3.10"
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
