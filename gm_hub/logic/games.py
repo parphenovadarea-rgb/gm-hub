@@ -140,6 +140,33 @@ def cancel_game(conn, user, game_id) -> None:
         conn.execute("UPDATE Games SET status = 'CANCELLED' WHERE id = ?", (game_id,))
 
 
+def delete_game(conn, user, game_id) -> None:
+    """Удаляет отменённую сессию вместе с её заявками и заметкой.
+
+    Удалять можно только отменённую сессию, чтобы случайно не стереть
+    запланированную игру с подтверждёнными игроками.
+
+    Args:
+        conn: Подключение к БД.
+        user: Текущий пользователь (Мастер).
+        game_id: id сессии.
+
+    Raises:
+        AccessError: Если пользователь не Мастер.
+        ValidationError: Если сессия не отменена.
+    """
+    check_gm(user)
+    game = get_game(conn, game_id)
+    if game is None or game["status"] != "CANCELLED":
+        raise ValidationError(
+            "Сессия", "Удалить можно только отменённую сессию. Сначала отмените её."
+        )
+    with conn:
+        conn.execute("DELETE FROM Game_Signups WHERE game_id = ?", (game_id,))
+        conn.execute("DELETE FROM Game_Notes WHERE game_id = ?", (game_id,))
+        conn.execute("DELETE FROM Games WHERE id = ?", (game_id,))
+
+
 def close_past_games(conn) -> None:
     """Помечает прошедшие запланированные сессии статусом CLOSED.
 

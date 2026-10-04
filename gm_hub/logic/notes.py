@@ -59,6 +59,21 @@ def save_game_note(conn, user, game_id, content) -> str:
     return updated_at
 
 
+def delete_game_note(conn, user, game_id) -> None:
+    """Удаляет заметку к сессии.
+
+    Args:
+        conn: Подключение к БД.
+        user: Текущий пользователь (Мастер).
+        game_id: id сессии.
+    """
+    check_gm(user)
+    if game_id is None:
+        raise ValidationError("Сессия", "Выберите сессию в списке слева.")
+    with conn:
+        conn.execute("DELETE FROM Game_Notes WHERE game_id = ?", (game_id,))
+
+
 def list_world_notes(conn, user, category=None, search=""):
     """Возвращает записи базы мира.
 

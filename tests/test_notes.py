@@ -28,6 +28,8 @@ class NotesTest(unittest.TestCase):
         note = notes.get_game_note(self.conn, self.gm, self.game1)
         self.assertEqual(note["content"], "Сцена 1. Обвал")
         self.assertIsNotNone(note["updated_at"])
+        notes.delete_game_note(self.conn, self.gm, self.game1)
+        self.assertIsNone(notes.get_game_note(self.conn, self.gm, self.game1))
 
     def test_12_player_has_no_access(self):
         """Сценарий 12: Игроку блокнот и база мира недоступны."""
