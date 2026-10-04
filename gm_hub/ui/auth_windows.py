@@ -1,7 +1,7 @@
 """Окна «Вход» и «Регистрация» (макеты 01 и 02)."""
 
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import ttk
 
 from gm_hub.logic import auth
 from gm_hub.logic.errors import ValidationError
@@ -131,5 +131,6 @@ class RegisterFrame(ttk.Frame):
             self.error.config(text=error.message)
             self.entries.get(error.field, self.entries["ФИО"]).focus()
             return
-        messagebox.showinfo("Регистрация", "Аккаунт создан. Войдите в систему.")
-        self.app.show_login()
+        # Как в прототипе Figma: после регистрации сразу открывается окно роли.
+        user = auth.login_user(self.app.conn, values["Логин"], values["Пароль"])
+        self.app.open_main(user)
