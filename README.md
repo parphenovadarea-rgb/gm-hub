@@ -9,7 +9,7 @@
 ## Запуск
 
 ```
-py seed.py              демо-БД (пароль у всех 1234: master, gleb, artem, elena, polina)
+py seed.py              демо-БД по макетам Figma (пароль у всех 1234: агыг — Мастер; gleb, polina, artem, elena, nikita, vera — Игроки)
 py main.py              запуск программы
 py -m unittest -v       тесты по сценариям п. 6.1 ТЗ
 ```
