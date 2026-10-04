@@ -273,15 +273,18 @@ class SignupsTab(ttk.Frame):
         self.table.bind("<<TreeviewSelect>>", self.on_select)
         buttons = ttk.Frame(left)
         buttons.pack(fill="x", pady=(8, 0))
-        ttk.Button(
+        self.confirm_button = ttk.Button(
             buttons,
             text="✓ Подтвердить",
             style="Accent.TButton",
             command=self.on_confirm,
-        ).pack(side="left")
+        )
+        self.confirm_button.pack(side="left")
         ttk.Button(buttons, text="Отклонить", command=self.on_reject).pack(
             side="left", padx=6
         )
+        self.blocked = ttk.Label(left, style="Error.TLabel", wraplength=600)
+        self.blocked.pack(anchor="w", pady=(6, 0))
 
         card = ttk.LabelFrame(
             body, text="Карточка персонажа (только чтение)", padding=10
@@ -309,13 +312,22 @@ class SignupsTab(ttk.Frame):
         game_id = self.game_ids.get(self.game_box.get())
         if game_id is None:
             self.seats.config(text="Нет предстоящих сессий")
+            self.blocked.config(text="")
             return
         game = games.get_game(self.app.conn, game_id)
         free = games.free_seats(game["max_players"], game["confirmed"])
-        text = f"Свободно: {free} из {game['max_players']}"
+        self.seats.config(text=f"Свободно: {free} из {game['max_players']}")
+        # Автоматическая блокировка подтверждения при достижении лимита (п. 4.2.3).
         if free <= 0:
-            text += " — подтверждение заблокировано"
-        self.seats.config(text=text, foreground="#a1362c" if free <= 0 else "")
+            self.confirm_button.state(["disabled"])
+            self.blocked.config(
+                text=f"Подтвердить заявку нельзя: уже подтверждено "
+                f"{game['confirmed']} из {game['max_players']}. Отклоните заявку "
+                "или увеличьте лимит мест во вкладке «Расписание»."
+            )
+        else:
+            self.confirm_button.state(["!disabled"])
+            self.blocked.config(text="")
 
         status_filter = self.status_box.get()
         self.rows = {}
