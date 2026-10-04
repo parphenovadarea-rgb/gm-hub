@@ -1,6 +1,7 @@
 """Общие элементы интерфейса: цвета, стили, таблицы (п. 4.1.13 ТЗ)."""
 
 import tkinter as tk
+import tkinter.font as tkfont
 from datetime import datetime, timedelta
 from tkinter import ttk
 
@@ -33,7 +34,10 @@ def setup_style(root: tk.Tk) -> None:
         root: Главное окно.
     """
     root.configure(bg=BG)
-    root.option_add("*Font", FONT)
+    # Меняем стандартные шрифты Tk, а не option_add("*Font"):
+    # иначе шрифт из базы опций перебивает шрифты стилей (Title, Bold).
+    for name in ("TkDefaultFont", "TkTextFont", "TkHeadingFont", "TkMenuFont"):
+        tkfont.nametofont(name).configure(family=FONT[0], size=FONT[1])
     style = ttk.Style(root)
     style.theme_use("clam")
     style.configure(".", background=BG, foreground=INK, font=FONT)
@@ -204,5 +208,12 @@ def make_text(parent, height: int = 5) -> tk.Text:
         Поле Text.
     """
     return tk.Text(
-        parent, height=height, width=40, wrap="word", relief="solid", bd=1, padx=6
+        parent,
+        height=height,
+        width=40,
+        wrap="word",
+        relief="solid",
+        bd=1,
+        padx=6,
+        font=FONT,
     )
