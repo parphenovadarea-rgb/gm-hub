@@ -34,3 +34,17 @@ def to_show(db_value: str | None) -> str:
     if not db_value:
         return "—"
     return datetime.strptime(db_value, DATETIME_FORMAT).strftime(SHOW_FORMAT)
+
+
+def to_short(db_value: str | None) -> str:
+    """Переводит дату из формата БД в короткий вид без года.
+
+    Args:
+        db_value: Дата в формате БД или None.
+
+    Returns:
+        Строка вида «04.10 18:00» или «—», если даты нет.
+    """
+    if not db_value:
+        return "—"
+    return datetime.strptime(db_value, DATETIME_FORMAT).strftime("%d.%m %H:%M")

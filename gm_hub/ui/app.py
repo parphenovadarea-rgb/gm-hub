@@ -32,8 +32,6 @@ class App(tk.Tk):
         self.conn = conn
         self.user = None
         self.screen = None
-        self.geometry("1200x700")
-        self.minsize(1100, 640)
         setup_style(self)
         # Сценарий 1 п. 6.1 ТЗ: при первом запуске открывается регистрация.
         if auth.has_users(conn):
@@ -41,26 +39,28 @@ class App(tk.Tk):
         else:
             self.show_register()
 
-    def show(self, screen, title: str) -> None:
+    def show(self, screen_class, title: str, size: str) -> None:
         """Заменяет текущий экран новым.
 
         Args:
-            screen: Новый экран (Frame).
+            screen_class: Класс экрана (Frame), создаётся здесь.
             title: Заголовок окна.
+            size: Размер окна, например «1280x760».
         """
         if self.screen is not None:
             self.screen.destroy()
-        self.screen = screen
         self.title(f"Game Master Hub — {title}")
-        screen.pack(fill="both", expand=True)
+        self.geometry(size)
+        self.screen = screen_class(self)
+        self.screen.pack(fill="both", expand=True)
 
     def show_login(self) -> None:
         """Открывает окно входа."""
-        self.show(LoginFrame(self), "Вход")
+        self.show(LoginFrame, "Вход", "520x470")
 
     def show_register(self) -> None:
         """Открывает окно регистрации."""
-        self.show(RegisterFrame(self), "Регистрация")
+        self.show(RegisterFrame, "Регистрация", "560x640")
 
     def open_main(self, user) -> None:
         """Открывает окно по роли пользователя (п. 4.2.1 ТЗ).
@@ -70,9 +70,9 @@ class App(tk.Tk):
         """
         self.user = user
         if user["role"] == "GM":
-            self.show(GMFrame(self), "Мастер")
+            self.show(GMFrame, "Мастер", "1320x780")
         else:
-            self.show(PlayerFrame(self), "Игрок")
+            self.show(PlayerFrame, "Игрок", "1320x780")
 
     def show_profile(self) -> None:
         """Открывает окно профиля текущего пользователя."""

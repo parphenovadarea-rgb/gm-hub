@@ -1,10 +1,15 @@
 """Окна «Вход» и «Регистрация» (макеты 01 и 02)."""
 
-import tkinter as tk
 from tkinter import ttk
 
 from gm_hub.logic import auth
 from gm_hub.logic.errors import ValidationError
+from gm_hub.ui.common import Banner, ChoiceCards, field, link
+
+ROLES = [
+    ("GM", "Мастер", "создаю сессии, веду сюжет"),
+    ("PLAYER", "Игрок", "веду персонажей, записываюсь"),
+]
 
 
 class LoginFrame(ttk.Frame):
@@ -16,30 +21,27 @@ class LoginFrame(ttk.Frame):
         Args:
             app: Приложение (нужны app.conn и app.open_main).
         """
-        super().__init__(app, padding=30)
+        super().__init__(app, padding=(40, 30))
         self.app = app
-        card = ttk.Frame(self)
-        card.place(relx=0.5, rely=0.45, anchor="center")
+        ttk.Label(self, text="Вход", style="Title.TLabel").pack(pady=(30, 16))
 
-        ttk.Label(card, text="Game Master Hub", style="Title.TLabel").pack()
-        ttk.Label(
-            card, text="Ассистент ведущего настольных ролевых игр", style="Muted.TLabel"
-        ).pack(pady=(0, 20))
+        field(self, "Логин")
+        self.login = ttk.Entry(self)
+        self.login.pack(fill="x", ipady=3)
+        field(self, "Пароль")
+        self.password = ttk.Entry(self, show="●")
+        self.password.pack(fill="x", ipady=3)
 
-        ttk.Label(card, text="Логин").pack(anchor="w")
-        self.login = ttk.Entry(card, width=36)
-        self.login.pack(pady=(0, 10))
-        ttk.Label(card, text="Пароль").pack(anchor="w")
-        self.password = ttk.Entry(card, width=36, show="●")
-        self.password.pack(pady=(0, 10))
+        self.button = ttk.Button(
+            self, text="Войти", style="Accent.TButton", command=self.on_login
+        )
+        self.button.pack(fill="x", pady=(16, 10), ipady=4)
+        self.error = Banner(self, fill="x", pady=(12, 0), before=self.button)
 
-        self.error = ttk.Label(card, style="Error.TLabel")
-        self.error.pack()
-        ttk.Button(
-            card, text="Войти", style="Accent.TButton", command=self.on_login
-        ).pack(fill="x", pady=10)
-        ttk.Label(card, text="Нет аккаунта?", style="Muted.TLabel").pack()
-        ttk.Button(card, text="Зарегистрироваться", command=app.show_register).pack()
+        bottom = ttk.Frame(self)
+        bottom.pack()
+        ttk.Label(bottom, text="Нет аккаунта?", style="Muted.TLabel").pack(side="left")
+        link(bottom, "Зарегистрироваться", app.show_register).pack(side="left")
 
         self.login.focus()
         self.password.bind("<Return>", lambda e: self.on_login())
@@ -49,74 +51,71 @@ class LoginFrame(ttk.Frame):
         try:
             user = auth.login_user(self.app.conn, self.login.get(), self.password.get())
         except ValidationError as error:
-            self.error.config(text=error.message)
+            self.error.show(error.message)
             return
         self.app.open_main(user)
 
 
 class RegisterFrame(ttk.Frame):
-    """Окно регистрации с выбором роли."""
+    """Окно регистрации с выбором роли карточками."""
 
     def __init__(self, app):
         """Создаёт поля и кнопки окна.
 
         Args:
-            app: Приложение (нужны app.conn, app.show_login).
+            app: Приложение (нужны app.conn, app.show_login, app.open_main).
         """
-        super().__init__(app, padding=30)
+        super().__init__(app, padding=(40, 20))
         self.app = app
-        card = ttk.Frame(self)
-        card.place(relx=0.5, rely=0.45, anchor="center")
-
-        ttk.Label(card, text="Регистрация", style="Title.TLabel").grid(
-            row=0, column=0, columnspan=2
-        )
+        ttk.Label(self, text="Регистрация", style="Title.TLabel").pack(pady=(10, 2))
         ttk.Label(
-            card,
+            self,
             text="Создайте аккаунт, чтобы вести игры или записываться на них",
             style="Muted.TLabel",
-        ).grid(row=1, column=0, columnspan=2, pady=(0, 16))
+        ).pack()
 
         self.entries = {}
-        fields = [("ФИО", ""), ("Логин", ""), ("Пароль", "●"), ("Повтор", "●")]
-        for row, (name, show) in enumerate(fields, start=2):
-            ttk.Label(card, text=name + " *").grid(row=row, column=0, sticky="w")
-            entry = ttk.Entry(card, width=34, show=show)
-            entry.grid(row=row, column=1, pady=4)
-            self.entries[name] = entry
+        for name in ("ФИО", "Логин"):
+            field(self, name)
+            self.entries[name] = ttk.Entry(self)
+            self.entries[name].pack(fill="x", ipady=3)
 
-        ttk.Label(card, text="Роль *").grid(row=6, column=0, sticky="nw", pady=6)
-        self.role = tk.StringVar(value="PLAYER")
-        roles = ttk.Frame(card)
-        roles.grid(row=6, column=1, sticky="w", pady=6)
-        ttk.Radiobutton(
-            roles,
-            text="Мастер — создаю сессии, веду сюжет",
-            value="GM",
-            variable=self.role,
-        ).pack(anchor="w")
-        ttk.Radiobutton(
-            roles,
-            text="Игрок — веду персонажей, записываюсь",
-            value="PLAYER",
-            variable=self.role,
-        ).pack(anchor="w")
+        row = ttk.Frame(self)
+        row.pack(fill="x")
+        for column, name in enumerate(("Пароль", "Повтор")):
+            box = ttk.Frame(row)
+            box.grid(
+                row=0, column=column, sticky="ew", padx=(0, 8) if column == 0 else 0
+            )
+            field(box, name)
+            self.entries[name] = ttk.Entry(box, show="●")
+            self.entries[name].pack(fill="x", ipady=3)
+        row.columnconfigure((0, 1), weight=1, uniform="half")
 
-        self.error = ttk.Label(card, style="Error.TLabel")
-        self.error.grid(row=7, column=0, columnspan=2)
-        ttk.Button(
-            card,
+        field(self, "Роль")
+        self.role = ChoiceCards(self, columns=2)
+        self.role.set_options(ROLES)
+        self.role.pack(fill="x")
+
+        self.button = ttk.Button(
+            self,
             text="Зарегистрироваться",
             style="Accent.TButton",
             command=self.on_register,
-        ).grid(row=8, column=0, columnspan=2, sticky="ew", pady=8)
-        ttk.Button(card, text="Уже есть аккаунт? Войти", command=app.show_login).grid(
-            row=9, column=0, columnspan=2
         )
+        self.button.pack(fill="x", pady=(8, 10), ipady=4)
+        self.error = Banner(self, fill="x", pady=(4, 4), before=self.button)
+
+        bottom = ttk.Frame(self)
+        bottom.pack()
+        ttk.Label(bottom, text="Уже есть аккаунт?", style="Muted.TLabel").pack(
+            side="left"
+        )
+        link(bottom, "Войти", app.show_login).pack(side="left")
         self.entries["ФИО"].focus()
 
     def on_register(self):
-        """Регистрирует пользователя и переходит к окну входа."""
+        """Регистрирует пользователя и сразу открывает окно его роли."""
         values = {name: entry.get() for name, entry in self.entries.items()}
         try:
             auth.register(
@@ -128,8 +127,9 @@ class RegisterFrame(ttk.Frame):
                 self.role.get(),
             )
         except ValidationError as error:
-            self.error.config(text=error.message)
-            self.entries.get(error.field, self.entries["ФИО"]).focus()
+            self.error.show(error.message)
+            if error.field in self.entries:
+                self.entries[error.field].focus()
             return
         # Как в прототипе Figma: после регистрации сразу открывается окно роли.
         user = auth.login_user(self.app.conn, values["Логин"], values["Пароль"])
