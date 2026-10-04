@@ -70,6 +70,9 @@ def make_header(parent, app, subtitle: str) -> ttk.Frame:
     ).pack(side="left")
     ttk.Label(header, text="   " + subtitle, style="Header.TLabel").pack(side="left")
     ttk.Button(header, text="Выйти", command=app.logout).pack(side="right")
+    ttk.Button(header, text="Профиль", command=app.show_profile).pack(
+        side="right", padx=6
+    )
     role = "Мастер" if app.user["role"] == "GM" else "Игрок"
     ttk.Label(
         header, text=f"{app.user['full_name']} · {role}   ", style="Header.TLabel"

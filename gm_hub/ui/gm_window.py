@@ -87,8 +87,11 @@ class ScheduleTab(ttk.Frame):
         self.period.set("Предстоящие")
         self.period.bind("<<ComboboxSelected>>", lambda e: self.refresh())
         self.period.pack(side="left")
-        ttk.Button(top, text="Отменить сессию", command=self.on_cancel).pack(
+        ttk.Button(top, text="Удалить сессию", command=self.on_delete).pack(
             side="right"
+        )
+        ttk.Button(top, text="Отменить сессию", command=self.on_cancel).pack(
+            side="right", padx=(6, 0)
         )
         ttk.Button(
             top, text="+ Новая сессия", style="Accent.TButton", command=self.clear_form
@@ -220,6 +223,17 @@ class ScheduleTab(ttk.Frame):
             raise ValidationError("Сессия", "Выберите сессию в таблице.")
         if messagebox.askyesno("Отмена сессии", "Отменить выбранную сессию?"):
             games.cancel_game(self.app.conn, self.app.user, game_id)
+            self.clear_form()
+            self.refresh()
+
+    def on_delete(self):
+        """Удаляет выбранную отменённую сессию после подтверждения."""
+        game_id = selected_id(self.table)
+        if game_id is None:
+            raise ValidationError("Сессия", "Выберите сессию в таблице.")
+        question = "Удалить сессию вместе с заявками и заметкой?"
+        if messagebox.askyesno("Удаление сессии", question):
+            games.delete_game(self.app.conn, self.app.user, game_id)
             self.clear_form()
             self.refresh()
 
@@ -425,6 +439,9 @@ class GameNotesTab(ttk.Frame):
         ttk.Button(bottom, text="Отменить правки", command=self.on_select).pack(
             side="right", padx=6
         )
+        ttk.Button(bottom, text="Удалить заметку", command=self.on_delete).pack(
+            side="right"
+        )
 
     def refresh(self):
         """Перечитывает список предстоящих и прошедших сессий."""
@@ -471,6 +488,16 @@ class GameNotesTab(ttk.Frame):
         )
         self.updated.config(text=f"Изменено автоматически: {to_show(updated_at)}")
         self.refresh()
+
+    def on_delete(self):
+        """Удаляет заметку выбранной сессии после подтверждения."""
+        if self.game_id is None:
+            raise ValidationError("Сессия", "Выберите сессию в списке слева.")
+        if messagebox.askyesno("Сюжетный блокнот", "Удалить заметку к этой сессии?"):
+            notes.delete_game_note(self.app.conn, self.app.user, self.game_id)
+            set_text(self.editor, "")
+            self.updated.config(text="Изменено автоматически: —")
+            self.refresh()
 
 
 class WorldTab(ttk.Frame):

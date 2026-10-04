@@ -11,6 +11,7 @@ from gm_hub.ui.auth_windows import LoginFrame, RegisterFrame
 from gm_hub.ui.common import setup_style
 from gm_hub.ui.gm_window import GMFrame
 from gm_hub.ui.player_window import PlayerFrame
+from gm_hub.ui.profile_window import ProfileWindow
 
 
 class App(tk.Tk):
@@ -72,6 +73,10 @@ class App(tk.Tk):
             self.show(GMFrame(self), "Мастер")
         else:
             self.show(PlayerFrame(self), "Игрок")
+
+    def show_profile(self) -> None:
+        """Открывает окно профиля текущего пользователя."""
+        ProfileWindow(self)
 
     def logout(self) -> None:
         """Выходит из учётной записи."""
