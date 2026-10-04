@@ -7,6 +7,7 @@
 import tkinter as tk
 import tkinter.font as tkfont
 from datetime import datetime, timedelta
+from pathlib import Path
 from tkinter import ttk
 
 from gm_hub.config import DATETIME_FORMAT, SHOW_FORMAT
@@ -65,29 +66,22 @@ def setup_style(root: tk.Tk) -> None:
     style.configure("Green.TLabel", foreground=ACCENT, font=FONT_BOLD)
 
     # Кнопки: белая с рамкой, зелёная главная, белая с красным текстом.
-    flat = {"lightcolor": BG, "darkcolor": BG, "bordercolor": LINE, "padding": (12, 5)}
-    style.configure("TButton", background=BG, **flat)
-    style.map("TButton", background=[("active", BG_SOFT)])
+    # Скруглённые углы — это картинки из папки img, растянутые по краям.
+    rounded_button(style, "TButton", "button", hover="button_hover")
+    rounded_button(
+        style,
+        "Accent.TButton",
+        "accent",
+        hover="accent_hover",
+        disabled="accent_disabled",
+    )
+    rounded_button(style, "Danger.TButton", "button", hover="danger_hover")
+    style.configure("TButton", padding=(14, 6))
     style.configure(
-        "Accent.TButton",
-        background=ACCENT,
-        foreground="white",
-        bordercolor=ACCENT,
-        lightcolor=ACCENT,
-        darkcolor=ACCENT,
-        font=FONT_BOLD,
-        padding=(12, 5),
+        "Accent.TButton", foreground="white", font=FONT_BOLD, padding=(14, 6)
     )
-    style.map(
-        "Accent.TButton",
-        background=[("disabled", "#e4ebe5"), ("active", ACCENT_HOVER)],
-        foreground=[("disabled", "#8fa596")],
-        bordercolor=[("disabled", "#e4ebe5")],
-        lightcolor=[("disabled", "#e4ebe5"), ("active", ACCENT_HOVER)],
-        darkcolor=[("disabled", "#e4ebe5"), ("active", ACCENT_HOVER)],
-    )
-    style.configure("Danger.TButton", background=BG, foreground=RED, **flat)
-    style.map("Danger.TButton", background=[("active", RED_SOFT)])
+    style.map("Accent.TButton", foreground=[("disabled", "#8fa596")])
+    style.configure("Danger.TButton", foreground=RED, padding=(14, 6))
 
     # Вкладки-закладки в шапке и сегментные фильтры — это Radiobutton.
     style.configure(
@@ -113,10 +107,36 @@ def setup_style(root: tk.Tk) -> None:
         foreground=[("selected", ACCENT)],
     )
 
-    style.configure(
-        "TEntry", fieldbackground=BG, bordercolor=LINE, lightcolor=BG, padding=5
+    # Поле ввода тоже со скруглённой рамкой; при фокусе рамка зелёная.
+    style.element_create(
+        "Rounded.field",
+        "image",
+        image("field"),
+        ("focus", image("field_focus")),
+        border=8,
+        sticky="nsew",
     )
-    style.map("TEntry", bordercolor=[("focus", ACCENT)], lightcolor=[("focus", BG)])
+    style.layout(
+        "TEntry",
+        [
+            (
+                "Rounded.field",
+                {
+                    "sticky": "nsew",
+                    "children": [
+                        (
+                            "Entry.padding",
+                            {
+                                "sticky": "nsew",
+                                "children": [("Entry.textarea", {"sticky": "nsew"})],
+                            },
+                        )
+                    ],
+                },
+            )
+        ],
+    )
+    style.configure("TEntry", padding=(8, 2))
     style.configure("TCombobox", fieldbackground=BG, background=BG, padding=4)
     style.map("TCombobox", fieldbackground=[("readonly", BG)])
     style.configure("TSpinbox", fieldbackground=BG, background=BG, padding=4)
@@ -147,6 +167,66 @@ def setup_style(root: tk.Tk) -> None:
     style.configure("Tall.Treeview", rowheight=48)
     style.configure("Header.TFrame", background=BG)
     style.configure("Line.TFrame", background=LINE)
+
+
+IMG_DIR = Path(__file__).with_name("img")
+_images = {}  # картинки нужно хранить, иначе Tk их удалит
+
+
+def image(name: str) -> tk.PhotoImage:
+    """Загружает картинку из папки ui/img (один раз).
+
+    Args:
+        name: Имя файла без расширения .png.
+
+    Returns:
+        Картинка Tk.
+    """
+    if name not in _images:
+        _images[name] = tk.PhotoImage(file=str(IMG_DIR / f"{name}.png"))
+    return _images[name]
+
+
+def rounded_button(style, style_name, normal, hover, disabled=None) -> None:
+    """Делает кнопку стиля style_name со скруглёнными углами.
+
+    Фон кнопки — картинка со скруглённым прямоугольником. Параметр border=8
+    говорит Tk не растягивать углы картинки, а тянуть только середину.
+
+    Args:
+        style: Объект ttk.Style.
+        style_name: Имя стиля, например «Accent.TButton».
+        normal: Картинка обычного состояния.
+        hover: Картинка при наведении мыши.
+        disabled: Картинка неактивной кнопки (если нужна).
+    """
+    states = [("active", image(hover))]
+    if disabled:
+        states.insert(0, ("disabled", image(disabled)))
+    element = style_name + ".rounded"
+    style.element_create(
+        element, "image", image(normal), *states, border=8, sticky="nsew"
+    )
+    style.layout(
+        style_name,
+        [
+            (
+                element,
+                {
+                    "sticky": "nsew",
+                    "children": [
+                        (
+                            "Button.padding",
+                            {
+                                "sticky": "nsew",
+                                "children": [("Button.label", {"sticky": "nsew"})],
+                            },
+                        )
+                    ],
+                },
+            )
+        ],
+    )
 
 
 def _no_3d() -> dict:
