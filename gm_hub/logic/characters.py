@@ -103,6 +103,9 @@ def save_character(conn, user, name, race, cls, level, backstory, character_id=N
 def active_signups(conn, character_id):
     """Возвращает заявки персонажа со статусом PENDING или CONFIRMED.
 
+    Учитываются только запланированные сессии: заявки на отменённую
+    или уже прошедшую сессию удаление персонажа не блокируют.
+
     Args:
         conn: Подключение к БД.
         character_id: id персонажа.
@@ -113,7 +116,8 @@ def active_signups(conn, character_id):
     return conn.execute(
         "SELECT g.title, s.status FROM Game_Signups s "
         "JOIN Games g ON g.id = s.game_id "
-        "WHERE s.character_id = ? AND s.status IN ('PENDING', 'CONFIRMED')",
+        "WHERE s.character_id = ? AND s.status IN ('PENDING', 'CONFIRMED') "
+        "AND g.status = 'PLANNED'",
         (character_id,),
     ).fetchall()
 

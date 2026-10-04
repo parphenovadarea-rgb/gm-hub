@@ -49,6 +49,15 @@ class CharactersTest(unittest.TestCase):
             characters.delete_character(self.conn, self.player, char_id)
         self.assertIsNotNone(characters.get_character(self.conn, char_id))
 
+    def test_delete_after_game_cancelled(self):
+        """Заявка на отменённую сессию не мешает удалить персонажа."""
+        char_id = self.add_character()
+        game_id = games.save_game(self.conn, self.gm, "Игра", "", *future(), 4)
+        signups.create_signup(self.conn, self.player, game_id, char_id)
+        games.cancel_game(self.conn, self.gm, game_id)
+        characters.delete_character(self.conn, self.player, char_id)
+        self.assertIsNone(characters.get_character(self.conn, char_id))
+
     def test_delete_without_signups(self):
         """Персонажа без активных заявок удалить можно."""
         char_id = self.add_character()
