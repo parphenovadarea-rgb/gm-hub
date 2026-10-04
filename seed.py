@@ -1,26 +1,130 @@
-"""Создаёт демонстрационную БД с данными из макетов: python seed.py.
+"""Создаёт демонстрационную БД с данными из макетов Figma: python seed.py.
 
 Внимание: старый файл gm_hub.db удаляется.
+
+Даты сессий считаются от текущего дня так же, как в макетах они считались
+от 29.09.2026: «Туман над Серым Бродом» через 2 дня, «Шахта Эхо, ч. 3» через 5
+и т. д. Поэтому на защите сессии всегда предстоящие.
 """
 
 from datetime import datetime, timedelta
 
-from gm_hub.config import DB_PATH
+from gm_hub.config import DB_PATH, DATETIME_FORMAT, now_str
 from gm_hub.db.database import connect, init_db
 from gm_hub.logic import auth, characters, games, notes, signups
 
+PASSWORD = "1234"  # пароль у всех демо-пользователей
 
-def in_days(days: int, time: str = "18:00") -> tuple[str, str]:
-    """Возвращает дату через days дней в формате формы.
+# (ФИО, логин, роль)
+USERS = [
+    ("Агыг", "агыг", "GM"),
+    ("Денисов Глеб", "gleb", "PLAYER"),
+    ("Жукова Полина", "polina", "PLAYER"),
+    ("Соколов Артём", "artem", "PLAYER"),
+    ("Кравцова Елена", "elena", "PLAYER"),
+    ("Белов Никита", "nikita", "PLAYER"),
+    ("Орлова Вера", "vera", "PLAYER"),
+]
+
+# fmt: off
+# (логин владельца, имя, раса, класс, уровень, предыстория)
+CHARACTERS = [
+    (
+        "gleb", "Пип", "Полурослик", "Плут", 4,
+        "Вырос в Сером Броде, в семье пекаря. В 14 лет попался на краже карты у "
+        "гильдии картографов, с тех пор должен им услугу. Боится темноты, но "
+        "скрывает это. Мечтает найти в шахте Эхо что-нибудь, чем можно откупиться "
+        "от гильдии.",
+    ),
+    ("gleb", "Корвин", "Человек", "Волшебник", 2, "Ученик городского мага."),
+    (
+        "polina", "Сэйра", "Человек", "Паладин", 1,
+        "Послушница храма Солнца, сбежала после пожара в обители и ищет того, "
+        "кто его устроил.",
+    ),
+    ("artem", "Торбек", "Дварф", "Жрец", 4, "Ищет пропавшего брата Хальварда."),
+    ("elena", "Эйлин", "Эльф", "Следопыт", 4, "Проводник по горным тропам."),
+    ("nikita", "Грум", "Полуорк", "Варвар", 3, "Бывший охранник каравана."),
+    ("vera", "Миралла", "Тифлинг", "Колдун", 4, "Договор с голосом из шахты."),
+]
+
+# (название, описание, через сколько дней, время, лимит мест)
+GAMES = [
+    ("Туман над Серым Бродом", "Расследование в портовом городе, 3–4 уровень",
+     2, "19:00", 4),
+    ("Шахта Эхо, ч. 3", "Спуск на нижние ярусы, 4 уровень", 5, "18:00", 5),
+    ("Ваншот: ограбление храма Солнца",
+     "Одна встреча на 4 часа, 1–3 уровень, новичкам можно", 12, "16:00", 4),
+    ("Шахта Эхо, ч. 4", "Финал арки, 4–5 уровень", 19, "18:00", 5),
+]
+
+# (сессия, персонаж, комментарий, итоговый статус)
+SIGNUPS = [
+    ("Туман над Серым Бродом", "Торбек", "", "CONFIRMED"),
+    ("Туман над Серым Бродом", "Эйлин", "", "CONFIRMED"),
+    ("Туман над Серым Бродом", "Грум", "", "CONFIRMED"),
+    ("Туман над Серым Бродом", "Миралла", "", "CONFIRMED"),
+    ("Туман над Серым Бродом", "Пип", "", "REJECTED"),
+    ("Туман над Серым Бродом", "Сэйра", "", "PENDING"),
+    ("Шахта Эхо, ч. 3", "Миралла", "", "CONFIRMED"),
+    ("Шахта Эхо, ч. 3", "Грум", "", "CONFIRMED"),
+    ("Шахта Эхо, ч. 3", "Эйлин", "", "CONFIRMED"),
+    ("Шахта Эхо, ч. 3", "Торбек", "", "CONFIRMED"),
+    ("Шахта Эхо, ч. 3", "Пип", "Приду к 18:15", "CONFIRMED"),
+    ("Шахта Эхо, ч. 3", "Корвин", "Если Пип не пройдёт", "REJECTED"),
+    ("Шахта Эхо, ч. 3", "Сэйра", "Первый раз, можно с нами?", "PENDING"),
+    ("Ваншот: ограбление храма Солнца", "Миралла", "", "CONFIRMED"),
+    ("Ваншот: ограбление храма Солнца", "Сэйра", "", "PENDING"),
+]
+
+MINE_NOTE = """Сцена 1. Обвал на втором ярусе
+Проход завален. Разобрать — 1 час и проверка Силы (Атлетика) СЛ 13. \
+Альтернатива: вентиляционная шахта, пролезет только Пип.
+
+Сцена 2. Эхо
+Голос в шахте повторяет фразы героев с задержкой. Если Миралла заговорит \
+со своим покровителем, эхо отвечает его голосом. Не раскрывать, что это Олдрик!
+
+Поворот
+Карта шахты у Торбека нарисована рукой его пропавшего брата."""
+
+FOG_NOTE = """Завязка
+В порт Серого Брода входит корабль без команды. Капитан Ренн просит помощи.
+
+Улики
+Судовой журнал обрывается на слове «Эхо»."""
+
+# (категория, заголовок, текст)
+WORLD = [
+    ("NPC", "Мэтр Олдрик",
+     "Трактирщик «Кривого котла».\n\nВнешность: лысый, седая борода заплетена "
+     "в косу, на левой руке нет двух пальцев.\nНа виду: добродушный трактирщик, "
+     "знает все слухи Серого Брода, наливает героям в долг.\nСекрет: бывший "
+     "шахтёр, единственный выживший после первого обвала. Голос в шахте Эхо — "
+     "его.\nСвязи: должен гильдии картографов; боится капитана Ренна."),
+    ("NPC", "Вейла Серебряная Нить", "Глава гильдии картографов."),
+    ("NPC", "Капитан Ренн", "Городская стража Серого Брода."),
+    ("NPC", "Брат Хальвард", "Пропавший брат Торбека."),
+    ("NPC", "Скрипун", "Кобольд-проводник."),
+    ("LORE", "Первый обвал", "Сорок лет назад шахту Эхо завалило."),
+    ("LORE", "Гильдия картографов", "Продаёт карты шахты втридорога."),
+    ("LOCATION", "Серый Брод", "Портовый город у подножия гор."),
+    ("LOCATION", "Шахта Эхо", "Заброшенная шахта к северу от города."),
+    ("LOCATION", "Таверна «Кривой котёл»", "Главное место встреч героев."),
+]
+# fmt: on
+
+
+def in_days(days: int) -> str:
+    """Возвращает дату через days дней в формате формы «ДД.ММ.ГГГГ».
 
     Args:
-        days: Через сколько дней.
-        time: Время «ЧЧ:ММ».
+        days: Через сколько дней (может быть отрицательным).
 
     Returns:
-        Пара (дата, время).
+        Дата строкой.
     """
-    return (datetime.now() + timedelta(days=days)).strftime("%d.%m.%Y"), time
+    return (datetime.now() + timedelta(days=days)).strftime("%d.%m.%Y")
 
 
 def main() -> None:
@@ -29,113 +133,59 @@ def main() -> None:
     conn = connect()
     init_db(conn)
 
-    # Пароль у всех демо-пользователей: 1234
-    users = [
-        ("Ильин Максим Сергеевич", "master", "GM"),
-        ("Денисов Глеб Андреевич", "gleb", "PLAYER"),
-        ("Соколов Артём Игоревич", "artem", "PLAYER"),
-        ("Кравцова Елена Павловна", "elena", "PLAYER"),
-        ("Жукова Полина Олеговна", "polina", "PLAYER"),
-    ]
-    for full_name, login, role in users:
-        auth.register(conn, full_name, login, "1234", "1234", role)
-    gm = auth.login_user(conn, "master", "1234")
-    gleb = auth.login_user(conn, "gleb", "1234")
-    artem = auth.login_user(conn, "artem", "1234")
-    elena = auth.login_user(conn, "elena", "1234")
-    polina = auth.login_user(conn, "polina", "1234")
+    users = {}
+    for full_name, login, role in USERS:
+        auth.register(conn, full_name, login, PASSWORD, PASSWORD, role)
+        users[login] = auth.login_user(conn, login, PASSWORD)
+    gm = users["агыг"]
 
-    pip = characters.save_character(
-        conn,
-        gleb,
-        "Пип",
-        "Полурослик",
-        "Плут",
-        4,
-        "Вырос в Сером Броде, в семье пекаря. Должен услугу гильдии картографов.",
-    )
-    corvin = characters.save_character(
-        conn, gleb, "Корвин", "Человек", "Волшебник", 2, "Ученик городского мага."
-    )
-    torbek = characters.save_character(
-        conn, artem, "Торбек", "Дварф", "Жрец", 4, "Ищет пропавшего брата."
-    )
-    eilin = characters.save_character(
-        conn, elena, "Эйлин", "Эльф", "Следопыт", 4, "Проводник по горным тропам."
-    )
-    seira = characters.save_character(
-        conn,
-        polina,
-        "Сэйра",
-        "Человек",
-        "Паладин",
-        1,
-        "Послушница храма Солнца, ищет того, кто устроил пожар в обители.",
-    )
+    chars = {}
+    for login, name, race, cls, level, story in CHARACTERS:
+        chars[name] = characters.save_character(
+            conn, users[login], name, race, cls, level, story
+        )
 
-    fog = games.save_game(
-        conn,
-        gm,
-        "Туман над Серым Бродом",
-        "Расследование в портовом городе, 3–4 уровень",
-        *in_days(2, "19:00"),
-        4,
-    )
-    mine = games.save_game(
-        conn,
-        gm,
-        "Шахта Эхо, ч. 3",
-        "Спуск на нижние ярусы, 4 уровень",
-        *in_days(5),
-        3,
-    )
-    games.save_game(
-        conn,
-        gm,
-        "Ваншот: ограбление храма Солнца",
-        "Одна встреча на 4 часа, 1–3 уровень, новичкам можно",
-        *in_days(12, "16:00"),
-        4,
-    )
+    game_ids = {}
+    for title, description, days, time, limit in GAMES:
+        game_ids[title] = games.save_game(
+            conn, gm, title, description, in_days(days), time, limit
+        )
 
-    s1 = signups.create_signup(conn, gleb, mine, pip, "Приду к 18:15")
-    s2 = signups.create_signup(conn, artem, mine, torbek)
-    s3 = signups.create_signup(conn, elena, mine, eilin)
-    s4 = signups.create_signup(conn, gleb, mine, corvin, "Если Пип не пройдёт")
-    signups.create_signup(conn, polina, mine, seira, "Первый раз, можно с нами?")
-    for signup_id in (s1, s2, s3):
-        signups.confirm_signup(conn, gm, signup_id)
-    signups.reject_signup(conn, gm, s4)
-    signups.create_signup(conn, gleb, fog, pip)
+    for title, name, comment, status in SIGNUPS:
+        owner = next(users[c[0]] for c in CHARACTERS if c[1] == name)
+        signup_id = signups.create_signup(
+            conn, owner, game_ids[title], chars[name], comment
+        )
+        if status == "CONFIRMED":
+            signups.confirm_signup(conn, gm, signup_id)
+        elif status == "REJECTED":
+            signups.reject_signup(conn, gm, signup_id)
 
-    notes.save_game_note(
-        conn,
-        gm,
-        mine,
-        "Сцена 1. Обвал на втором ярусе\nПроход завален. Разобрать — 1 час "
-        "и проверка Силы (Атлетика) СЛ 13.\n\nСцена 2. Эхо\nГолос в шахте "
-        "повторяет фразы героев с задержкой.\n\nПоворот\nКарта шахты у Торбека "
-        "нарисована рукой его пропавшего брата.",
-    )
-    notes.save_world_note(
-        conn,
-        gm,
-        "NPC",
-        "Мэтр Олдрик",
-        "Трактирщик «Кривого котла». Секрет: голос в шахте Эхо — его.",
-    )
-    notes.save_world_note(
-        conn, gm, "NPC", "Капитан Ренн", "Городская стража Серого Брода."
-    )
-    notes.save_world_note(
-        conn, gm, "LOCATION", "Серый Брод", "Портовый город у подножия гор."
-    )
-    notes.save_world_note(
-        conn, gm, "LORE", "Первый обвал", "Сорок лет назад шахту Эхо завалило."
-    )
+    # Прошедшую сессию через форму создать нельзя (дата в прошлом),
+    # поэтому для демонстрации она добавляется напрямую.
+    past = (datetime.now() - timedelta(days=9)).replace(hour=18, minute=0)
+    with conn:
+        conn.execute(
+            "INSERT INTO Games (gm_id, title, description, scheduled_at, "
+            "max_players, status) VALUES (?, ?, ?, ?, ?, 'CLOSED')",
+            (
+                gm["id"],
+                "Шахта Эхо, ч. 2",
+                "Первый спуск в шахту",
+                past.strftime(DATETIME_FORMAT),
+                5,
+            ),
+        )
+
+    notes.save_game_note(conn, gm, game_ids["Шахта Эхо, ч. 3"], MINE_NOTE)
+    notes.save_game_note(conn, gm, game_ids["Туман над Серым Бродом"], FOG_NOTE)
+    for category, title, text in WORLD:
+        notes.save_world_note(conn, gm, category, title, text)
+
     conn.close()
-    print(f"Демо-БД создана: {DB_PATH}")
-    print("Мастер: master / 1234; Игроки: gleb, artem, elena, polina / 1234")
+    print(f"Демо-БД создана {now_str()}: {DB_PATH}")
+    print(f"Мастер: агыг / {PASSWORD}")
+    print(f"Игроки: gleb, polina, artem, elena, nikita, vera / {PASSWORD}")
 
 
 if __name__ == "__main__":
