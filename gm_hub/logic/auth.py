@@ -51,6 +51,23 @@ def has_users(conn) -> bool:
     return conn.execute("SELECT COUNT(*) FROM Users").fetchone()[0] > 0
 
 
+def check_new_password(password: str, password2: str) -> None:
+    """Проверяет новый пароль и его повтор.
+
+    Args:
+        password: Пароль.
+        password2: Повтор пароля.
+
+    Raises:
+        ValidationError: Если пароль пустой, короткий или не совпал с повтором.
+    """
+    require(password, "Пароль")
+    if len(password) < 4:
+        raise ValidationError("Пароль", "Пароль должен быть не короче 4 символов.")
+    if password != password2:
+        raise ValidationError("Повтор", "Пароли не совпадают.")
+
+
 def register(conn, full_name, login, password, password2, role) -> int:
     """Регистрирует нового пользователя.
 
@@ -70,11 +87,7 @@ def register(conn, full_name, login, password, password2, role) -> int:
     """
     full_name = require(full_name, "ФИО")
     login = require(login, "Логин")
-    require(password, "Пароль")
-    if len(password) < 4:
-        raise ValidationError("Пароль", "Пароль должен быть не короче 4 символов.")
-    if password != password2:
-        raise ValidationError("Повтор", "Пароли не совпадают.")
+    check_new_password(password, password2)
     if role not in ROLE_NAMES:
         raise ValidationError("Роль", "Выберите роль: Мастер или Игрок.")
 
@@ -111,6 +124,87 @@ def login_user(conn, login, password):
     if user is None or not check_password(password, user["password_hash"]):
         raise ValidationError("Пароль", "Неверный логин или пароль.")
     return user
+
+
+def update_profile(conn, user, full_name, password, new_password="", new_password2=""):
+    """Изменяет ФИО и, если нужно, пароль пользователя.
+
+    Args:
+        conn: Подключение к БД.
+        user: Текущий пользователь.
+        full_name: Новое ФИО.
+        password: Текущий пароль для подтверждения.
+        new_password: Новый пароль. Пустой — пароль не меняется.
+        new_password2: Повтор нового пароля.
+
+    Returns:
+        Обновлённая строка таблицы Users.
+
+    Raises:
+        ValidationError: Если ФИО пустое, текущий пароль неверный
+            или новый пароль не прошёл проверку.
+    """
+    full_name = require(full_name, "ФИО")
+    check_current_password(conn, user, password)
+    change_password = bool(new_password or new_password2)
+    if change_password:
+        check_new_password(new_password, new_password2)
+    with conn:
+        conn.execute(
+            "UPDATE Users SET full_name = ? WHERE id = ?", (full_name, user["id"])
+        )
+        if change_password:
+            conn.execute(
+                "UPDATE Users SET password_hash = ? WHERE id = ?",
+                (hash_password(new_password), user["id"]),
+            )
+    return conn.execute("SELECT * FROM Users WHERE id = ?", (user["id"],)).fetchone()
+
+
+def delete_account(conn, user, password) -> None:
+    """Удаляет аккаунт, если у пользователя нет персонажей и сессий.
+
+    Args:
+        conn: Подключение к БД.
+        user: Текущий пользователь.
+        password: Текущий пароль для подтверждения.
+
+    Raises:
+        ValidationError: Если пароль неверный или у пользователя есть данные.
+    """
+    check_current_password(conn, user, password)
+    characters = conn.execute(
+        "SELECT COUNT(*) FROM Characters WHERE user_id = ?", (user["id"],)
+    ).fetchone()[0]
+    games = conn.execute(
+        "SELECT COUNT(*) FROM Games WHERE gm_id = ?", (user["id"],)
+    ).fetchone()[0]
+    if characters or games:
+        raise ValidationError(
+            "Аккаунт",
+            "Аккаунт нельзя удалить, пока у вас есть персонажи или сессии. "
+            "Сначала удалите их.",
+        )
+    with conn:
+        conn.execute("DELETE FROM Users WHERE id = ?", (user["id"],))
+
+
+def check_current_password(conn, user, password) -> None:
+    """Проверяет текущий пароль перед изменением аккаунта.
+
+    Args:
+        conn: Подключение к БД.
+        user: Текущий пользователь.
+        password: Введённый пароль.
+
+    Raises:
+        ValidationError: Если пароль неверный.
+    """
+    stored = conn.execute(
+        "SELECT password_hash FROM Users WHERE id = ?", (user["id"],)
+    ).fetchone()[0]
+    if not check_password(password or "", stored):
+        raise ValidationError("Текущий пароль", "Текущий пароль введён неверно.")
 
 
 def check_gm(user) -> None:
