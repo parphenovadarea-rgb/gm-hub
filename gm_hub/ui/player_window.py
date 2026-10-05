@@ -1,6 +1,7 @@
 """Окно Игрока: вкладки «Витрина сессий», «Мои записи», «Мои персонажи».
 
-Макеты 07–09. Вкладок «Сюжетный блокнот» и «База мира» здесь нет
+Макеты 07–09. Игрок выбирает Мастера (можно найти по имени) и видит
+витрину его сессий. Вкладок «Сюжетный блокнот» и «База мира» здесь нет
 (сценарий 12 п. 6.1 ТЗ).
 """
 
@@ -8,23 +9,21 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from gm_hub.config import now_str, to_short, to_show
-from gm_hub.logic import characters, games, signups
+from gm_hub.logic import auth, characters, games, signups
 from gm_hub.logic.errors import ValidationError
 from gm_hub.ui.common import (
     Banner,
     ChoiceCards,
     MainFrame,
     card,
-    clear_table,
     field,
     get_text,
     is_soon,
-    make_table,
     make_text,
     segmented,
-    selected_id,
     set_text,
 )
+from gm_hub.ui.table import STATUS_PILL, RowTable
 
 
 def character_info(c) -> str:
@@ -51,23 +50,50 @@ class PlayerFrame(MainFrame):
         )
 
 
-class ShowcaseTab(ttk.Frame):
-    """Вкладка «Витрина сессий» и запись на игру (макет 07)."""
+class Tab(ttk.Frame):
+    """Общая основа вкладки: серый фон и доступ к БД и пользователю."""
 
     def __init__(self, parent, app):
-        """Создаёт таблицу сессий и форму заявки.
+        """Создаёт вкладку.
 
         Args:
             parent: Область вкладок.
             app: Приложение.
         """
-        super().__init__(parent, padding=16)
+        super().__init__(parent, padding=16, style="Page.TFrame")
         self.app = app
+
+
+class ShowcaseTab(Tab):
+    """Вкладка «Витрина сессий»: выбор Мастера и запись на игру (макет 07)."""
+
+    def __init__(self, parent, app):
+        """Создаёт список Мастеров, таблицу сессий и форму заявки.
+
+        Args:
+            parent: Область вкладок.
+            app: Приложение.
+        """
+        super().__init__(parent, app)
+        self.master_id = None
+
+        # Слева — выбор Мастера с поиском по имени.
+        left = ttk.Frame(self, style="Page.TFrame")
+        left.pack(side="left", fill="y", padx=(0, 16))
+        ttk.Label(left, text="Мастер", style="PageBold.TLabel").pack(anchor="w")
+        ttk.Label(left, text="⌕ найти по имени", style="Page.TLabel").pack(anchor="w")
+        self.search = ttk.Entry(left, width=20)
+        self.search.pack(fill="x", pady=(4, 10), ipady=2)
+        self.search.bind("<KeyRelease>", lambda e: self.load_masters())
+        self.masters = RowTable(
+            left, [("Мастера", 170, True)], header=False, on_select=self.on_master
+        )
+        self.masters.pack(fill="y", expand=True)
 
         form = card(self, "Запись на сессию")
         form.master.pack(side="right", fill="y", padx=(16, 0))
         self.info_title = ttk.Label(
-            form, text="Выберите сессию в таблице", style="Bold.TLabel", width=36
+            form, text="Выберите сессию в таблице", style="Bold.TLabel", width=30
         )
         self.info_title.pack(anchor="w")
         self.info_when = ttk.Label(form, style="Muted.TLabel")
@@ -83,75 +109,136 @@ class ShowcaseTab(ttk.Frame):
         )
         self.send_button.pack(fill="x", pady=(14, 0), ipady=3)
         self.error = Banner(form, fill="x", pady=(10, 0), before=self.send_button)
+        ttk.Label(
+            form,
+            text="Без выбранного персонажа кнопка покажет:\n"
+            "«Выберите персонажа для заявки».",
+            style="Small.TLabel",
+        ).pack(anchor="w", pady=(10, 0))
 
-        top = ttk.Frame(self)
+        top = ttk.Frame(self, style="Page.TFrame")
         top.pack(fill="x")
+        self.master_label = ttk.Label(
+            top, style="PageInk.TLabel", font=("Georgia", 13, "bold")
+        )
+        self.master_label.pack(side="left")
         self.only_free = tk.BooleanVar(value=False)
         ttk.Checkbutton(
             top,
             text="Только со свободными местами",
             variable=self.only_free,
-            command=self.refresh,
-        ).pack(side="left")
-        ttk.Label(top, text="Сортировка по дате", style="Muted.TLabel").pack(
-            side="right"
-        )
+            command=self.load_games,
+            style="Page.TCheckbutton",
+        ).pack(side="right")
 
-        self.table = make_table(
+        self.table = RowTable(
             self,
             [
-                ("Сессия", 330),
-                ("Когда", 150),
-                ("Свободно", 100),
-                ("Мастер", 170),
-                ("Моя заявка", 150),
+                ("Сессия", 230, True),
+                ("Когда", 150, False),
+                ("Свободно", 80, False),
+                ("Моя заявка", 150, False),
             ],
-            tall=True,
+            on_select=self.on_select,
         )
-        self.table.master.pack(fill="both", expand=True, pady=(12, 0))
-        self.table.bind("<<TreeviewSelect>>", self.on_select)
+        self.table.pack(fill="both", expand=True, pady=(12, 0))
 
     def refresh(self):
-        """Перечитывает витрину и список персонажей."""
-        conn, user = self.app.conn, self.app.user
-        my_status = {}  # id сессии -> статусы моих заявок
-        for row in signups.list_for_player(conn, user):
-            status = signups.STATUS_NAMES[row["status"]]
-            my_status.setdefault(row["game_id"], []).append(status)
-
-        clear_table(self.table)
-        for game in games.list_games(conn):
-            free = games.free_seats(game["max_players"], game["confirmed"])
-            if self.only_free.get() and free <= 0:
-                continue
-            soon = is_soon(game["scheduled_at"])
-            self.table.insert(
-                "",
-                "end",
-                iid=game["id"],
-                tags=("soon",) if soon else (),
-                values=(
-                    f"{game['title']}\n{game['description'] or ''}",
-                    to_show(game["scheduled_at"]) + ("\nскоро" if soon else ""),
-                    f"{free} из {game['max_players']}",
-                    game["gm_name"],
-                    ", ".join(my_status.get(game["id"], [])) or "—",
-                ),
-            )
-
+        """Перечитывает Мастеров, витрину и список персонажей."""
+        self.load_masters()
         self.characters.set_options(
             [
                 (c["id"], c["name"], character_info(c))
-                for c in characters.list_characters(conn, user)
+                for c in characters.list_characters(self.app.conn, self.app.user)
             ]
         )
         self.error.hide()
 
-    def on_select(self, event=None):
-        """Показывает выбранную сессию в форме заявки."""
-        game_id = selected_id(self.table)
-        if game_id is None:
+    def load_masters(self):
+        """Показывает Мастеров, подходящих под поиск по имени."""
+        found = auth.list_masters(self.app.conn, self.search.get())
+        self.masters.clear("Мастер не найден")
+        for master in found:
+            count = len(games.list_games(self.app.conn, gm_id=master["id"]))
+            self.masters.add(
+                master["id"],
+                [
+                    (
+                        "stack",
+                        [
+                            ("bold", master["full_name"]),
+                            ("muted", f"предстоящих сессий: {count}"),
+                        ],
+                    )
+                ],
+            )
+        ids = [m["id"] for m in found]
+        if self.master_id not in ids:
+            self.master_id = ids[0] if ids else None
+        if self.master_id is not None:
+            self.masters.select(self.master_id, notify=False)
+        self.load_games()
+
+    def on_master(self, master_id):
+        """Выбирает Мастера и показывает его сессии."""
+        self.master_id = master_id
+        self.load_games()
+
+    def load_games(self):
+        """Показывает предстоящие сессии выбранного Мастера."""
+        conn, user = self.app.conn, self.app.user
+        self.info_title.config(text="Выберите сессию в таблице")
+        self.info_when.config(text="")
+        if self.master_id is None:
+            self.master_label.config(text="Мастер не выбран")
+            self.table.clear("Выберите Мастера слева")
             return
+        master = next(m for m in auth.list_masters(conn) if m["id"] == self.master_id)
+        self.master_label.config(text=f"Сессии Мастера: {master['full_name']}")
+
+        my_status = {}  # id сессии -> статусы моих заявок
+        for row in signups.list_for_player(conn, user):
+            my_status.setdefault(row["game_id"], []).append(row["status"])
+
+        self.table.clear("У этого Мастера нет предстоящих сессий")
+        for game in games.list_games(conn, gm_id=self.master_id):
+            free = games.free_seats(game["max_players"], game["confirmed"])
+            if self.only_free.get() and free <= 0:
+                continue
+            title = [("bold", game["title"])]
+            if game["description"]:
+                title.append(("muted", game["description"]))
+            when = [to_short(game["scheduled_at"])]
+            if is_soon(game["scheduled_at"]):
+                when.append(("small", "СКОРО"))
+            statuses = my_status.get(game["id"], [])
+            mine = (
+                ("pill", signups.STATUS_NAMES[statuses[0]], STATUS_PILL[statuses[0]])
+                if statuses
+                else ("muted", "—")
+            )
+            self.table.add(
+                game["id"],
+                [
+                    ("stack", title),
+                    ("line", when),
+                    (
+                        ("bold", f"{free} из {game['max_players']}")
+                        if free <= 0
+                        else f"{free} из {game['max_players']}"
+                    ),
+                    mine,
+                ],
+                sort=[
+                    game["title"].lower(),
+                    game["scheduled_at"],
+                    free,
+                    statuses[0] if statuses else "",
+                ],
+            )
+
+    def on_select(self, game_id):
+        """Показывает выбранную сессию в форме заявки."""
         game = games.get_game(self.app.conn, game_id)
         free = games.free_seats(game["max_players"], game["confirmed"])
         self.info_title.config(text=game["title"])
@@ -163,7 +250,7 @@ class ShowcaseTab(ttk.Frame):
 
     def on_send(self):
         """Подаёт заявку выбранным персонажем (сценарии 5–7)."""
-        game_id = selected_id(self.table)
+        game_id = self.table.selected
         try:
             signups.create_signup(
                 self.app.conn,
@@ -185,8 +272,8 @@ class ShowcaseTab(ttk.Frame):
         )
 
 
-class MySignupsTab(ttk.Frame):
-    """Вкладка «Мои записи»: статусы своих заявок (макет 08)."""
+class MySignupsTab(Tab):
+    """Вкладка «Мои записи»: статусы своих заявок у всех Мастеров (макет 08)."""
 
     PERIODS = [("Предстоящие", "future"), ("Прошедшие", "past")]
 
@@ -197,9 +284,8 @@ class MySignupsTab(ttk.Frame):
             parent: Область вкладок.
             app: Приложение.
         """
-        super().__init__(parent, padding=16)
-        self.app = app
-        top = ttk.Frame(self)
+        super().__init__(parent, app)
+        top = ttk.Frame(self, style="Page.TFrame")
         top.pack(fill="x")
         self.banner = Banner(self, fill="x", pady=(0, 12), before=top)
         self.period = tk.StringVar(value="future")
@@ -210,50 +296,66 @@ class MySignupsTab(ttk.Frame):
             style="Danger.TButton",
             command=self.on_withdraw,
         ).pack(side="right")
-        self.table = make_table(
+        self.table = RowTable(
             self,
             [
-                ("Сессия", 240),
-                ("Когда", 140),
-                ("Персонаж", 120),
-                ("Мой комментарий", 200),
-                ("Статус", 140),
-                ("Решение", 120),
+                ("Сессия", 260, True),
+                ("Когда", 140, False),
+                ("Персонаж", 110, False),
+                ("Мой комментарий", 180, True),
+                ("Статус", 150, False),
+                ("Решение", 100, False),
             ],
         )
-        self.table.master.pack(fill="both", expand=True, pady=12)
-        self.summary = ttk.Label(self, style="Muted.TLabel")
+        self.table.pack(fill="both", expand=True, pady=12)
+        self.summary = ttk.Label(self, style="Page.TLabel")
         self.summary.pack(anchor="w")
 
     def refresh(self):
         """Перечитывает заявки текущего Игрока (сценарий 14)."""
         self.banner.hide()
-        clear_table(self.table)
+        self.table.clear("Заявок нет")
         rows = signups.list_for_player(self.app.conn, self.app.user)
         now = now_str()
         for row in rows:
             upcoming = row["scheduled_at"] >= now
             if upcoming != (self.period.get() == "future"):
                 continue
-            self.table.insert(
-                "",
-                "end",
-                iid=row["id"],
-                tags=(row["status"],),
-                values=(
-                    row["game_title"],
+            self.table.add(
+                row["id"],
+                [
+                    (
+                        "stack",
+                        [
+                            ("bold", row["game_title"]),
+                            ("muted", f"Мастер: {row['gm_name']}"),
+                        ],
+                    ),
                     to_show(row["scheduled_at"]),
                     row["character_name"],
-                    row["comment"] or "—",
-                    signups.STATUS_NAMES[row["status"]],
-                    to_short(row["decided_at"]),
-                ),
+                    ("muted", row["comment"] or "—"),
+                    (
+                        "pill",
+                        signups.STATUS_NAMES[row["status"]],
+                        STATUS_PILL[row["status"]],
+                    ),
+                    ("muted", to_short(row["decided_at"])),
+                ],
+                sort=[
+                    row["game_title"].lower(),
+                    row["scheduled_at"],
+                    row["character_name"].lower(),
+                    row["comment"] or "",
+                    row["status"],
+                    row["decided_at"] or "",
+                ],
+                highlight=row["status"] == "PENDING",
             )
         confirmed = [r for r in rows if r["status"] == "CONFIRMED"]
         pending = [r for r in rows if r["status"] == "PENDING"]
         upcoming = [r for r in confirmed if r["scheduled_at"] >= now]
         nearest = (
-            f"{to_show(upcoming[0]['scheduled_at'])} · {upcoming[0]['game_title']}"
+            f"{to_short(upcoming[0]['scheduled_at'])} · {upcoming[0]['game_title']}"
             if upcoming
             else "—"
         )
@@ -264,7 +366,7 @@ class MySignupsTab(ttk.Frame):
 
     def on_withdraw(self):
         """Отзывает выбранную заявку после подтверждения."""
-        signup_id = selected_id(self.table)
+        signup_id = self.table.selected
         if signup_id is None:
             raise ValidationError("Заявка", "Выберите заявку в таблице.")
         if messagebox.askyesno("Мои записи", "Отозвать выбранную заявку?"):
@@ -272,7 +374,7 @@ class MySignupsTab(ttk.Frame):
             self.refresh()
 
 
-class CharactersTab(ttk.Frame):
+class CharactersTab(Tab):
     """Вкладка «Мои персонажи»: карточки персонажей (макет 09)."""
 
     def __init__(self, parent, app):
@@ -282,19 +384,20 @@ class CharactersTab(ttk.Frame):
             parent: Область вкладок.
             app: Приложение.
         """
-        super().__init__(parent, padding=16)
-        self.app = app
+        super().__init__(parent, app)
         self.character_id = None
 
-        left = ttk.Frame(self)
-        left.pack(side="left", fill="y")
-        head = ttk.Frame(left)
-        head.pack(fill="x", pady=(0, 8))
-        ttk.Label(head, text="Персонажи", style="Bold.TLabel").pack(side="left")
-        ttk.Button(head, text="+ Новый", command=self.clear_form).pack(side="right")
-        self.table = make_table(left, [("Персонаж", 260)], tall=True)
-        self.table.master.pack(fill="y", expand=True)
-        self.table.bind("<<TreeviewSelect>>", self.on_select)
+        left = card(self, "Персонажи", action=("+ Новый", self.clear_form))
+        left.master.pack(side="left", fill="y")
+        left.configure(padding=0)
+        self.table = RowTable(
+            left,
+            [("Персонаж", 240, True)],
+            header=False,
+            on_select=self.on_select,
+            border=False,
+        )
+        self.table.pack(fill="both", expand=True)
 
         form = card(self)
         form.master.pack(side="left", fill="both", expand=True, padx=(16, 0))
@@ -331,21 +434,31 @@ class CharactersTab(ttk.Frame):
         ttk.Button(
             buttons, text="Сохранить", style="Accent.TButton", command=self.on_save
         ).pack(side="right")
-        ttk.Button(buttons, text="Отменить", command=self.on_select).pack(
+        ttk.Button(buttons, text="Отменить", command=self.reload).pack(
             side="right", padx=6
         )
         self.error = Banner(form, fill="x", pady=(10, 0), before=buttons)
         self.clear_form()
 
     def refresh(self):
-        """Перечитывает персонажей текущего Игрока."""
-        clear_table(self.table)
+        """Перечитывает персонажей текущего Игрока с числом их заявок."""
+        counts = {}  # id персонажа -> {статус: количество}
+        for row in signups.list_for_player(self.app.conn, self.app.user):
+            by_status = counts.setdefault(row["character_id"], {})
+            by_status[row["status"]] = by_status.get(row["status"], 0) + 1
+        self.table.clear("Персонажей пока нет")
         for c in characters.list_characters(self.app.conn, self.app.user):
-            self.table.insert(
-                "", "end", iid=c["id"], values=(f"{c['name']}\n{character_info(c)}",)
-            )
-        if self.character_id and self.table.exists(self.character_id):
-            self.table.selection_set(self.character_id)
+            parts = [("bold", c["name"]), ("muted", character_info(c))]
+            by_status = counts.get(c["id"], {})
+            if by_status.get("CONFIRMED"):
+                parts.append(("pill", f"{by_status['CONFIRMED']} подтверждена", "ok"))
+            if by_status.get("PENDING"):
+                parts.append(
+                    ("pill", f"{by_status['PENDING']} на рассмотрении", "warn")
+                )
+            self.table.add(c["id"], [("stack", parts)])
+        if self.character_id in self.table.rows:
+            self.table.select(self.character_id, notify=False)
 
     def clear_form(self):
         """Очищает форму для нового персонажа."""
@@ -356,16 +469,19 @@ class CharactersTab(ttk.Frame):
         self.level.set(1)
         set_text(self.backstory, "")
         self.error.hide()
-        self.table.selection_remove(self.table.selection())
+        self.refresh()
         self.name.focus()
 
-    def on_select(self, event=None):
-        """Загружает выбранного персонажа в форму."""
-        character_id = selected_id(self.table)
-        if character_id is None:
-            return
-        c = characters.get_character(self.app.conn, character_id)
+    def on_select(self, character_id):
+        """Запоминает выбранного персонажа и загружает его в форму."""
         self.character_id = character_id
+        self.reload()
+
+    def reload(self):
+        """Загружает выбранного персонажа в форму (отменяет правки)."""
+        if self.character_id is None:
+            return
+        c = characters.get_character(self.app.conn, self.character_id)
         self.name.delete(0, "end")
         self.name.insert(0, c["name"])
         self.race.set(c["race"] or "")
@@ -406,4 +522,3 @@ class CharactersTab(ttk.Frame):
             self.error.show(error.message)
             return
         self.clear_form()
-        self.refresh()
