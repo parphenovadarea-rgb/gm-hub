@@ -29,11 +29,13 @@ RED_SOFT = "#fbe7e4"
 YELLOW = "#8a5a00"
 YELLOW_SOFT = "#fff1d1"
 
+# Размеры как в образцах окон: основной текст 13 px, подписи 12 px.
 FONT = ("Segoe UI", 10)
-FONT_BOLD = ("Segoe UI", 10, "bold")
+FONT_BOLD = ("Segoe UI Semibold", 10)
 FONT_SMALL = ("Segoe UI", 9)
-FONT_LOGO = ("Georgia", 14, "bold")
-FONT_TITLE = ("Georgia", 20, "bold")
+FONT_SMALL_BOLD = ("Segoe UI Semibold", 9)
+FONT_LOGO = ("Georgia", 13, "bold")
+FONT_TITLE = ("Georgia", 18, "bold")
 
 
 def setup_style(root: tk.Tk) -> None:
@@ -53,6 +55,11 @@ def setup_style(root: tk.Tk) -> None:
     style.configure(".", background=BG, foreground=INK, font=FONT, bordercolor=LINE)
     style.configure("Muted.TLabel", foreground=MUTED)
     style.configure("Small.TLabel", foreground=MUTED, font=FONT_SMALL)
+    style.configure("Field.TLabel", foreground=MUTED, font=FONT_SMALL_BOLD)
+    style.configure(
+        "PageField.TLabel", background=PAGE, foreground=MUTED, font=FONT_SMALL_BOLD
+    )
+    style.configure("Caps.TLabel", foreground=MUTED, font=FONT_SMALL_BOLD)
     style.configure("Bold.TLabel", font=FONT_BOLD)
     style.configure("Title.TLabel", font=FONT_TITLE)
     style.configure("Logo.TLabel", font=FONT_LOGO)
@@ -69,12 +76,12 @@ def setup_style(root: tk.Tk) -> None:
         disabled="accent_disabled",
     )
     rounded_button(style, "Danger.TButton", "button", hover="danger_hover")
-    style.configure("TButton", padding=(14, 6))
+    style.configure("TButton", padding=(12, 4))
     style.configure(
-        "Accent.TButton", foreground="white", font=FONT_BOLD, padding=(14, 6)
+        "Accent.TButton", foreground="white", font=FONT_BOLD, padding=(12, 4)
     )
     style.map("Accent.TButton", foreground=[("disabled", "#8fa596")])
-    style.configure("Danger.TButton", foreground=RED, padding=(14, 6))
+    style.configure("Danger.TButton", foreground=RED, padding=(12, 4))
     # Компактные кнопки внутри строк таблицы («Подтвердить», «Отклонить»).
     rounded_button(
         style,
@@ -85,33 +92,68 @@ def setup_style(root: tk.Tk) -> None:
     )
     rounded_button(style, "Small.Danger.TButton", "button", hover="danger_hover")
     rounded_button(style, "Small.TButton", "button", hover="button_hover")
-    style.configure("Small.TButton", font=FONT_SMALL, padding=(10, 3))
+    style.configure("Small.TButton", font=FONT_SMALL, padding=(9, 2))
     style.configure(
-        "Small.Accent.TButton", foreground="white", font=FONT_SMALL, padding=(10, 3)
+        "Small.Accent.TButton", foreground="white", font=FONT_SMALL, padding=(9, 2)
     )
     style.map("Small.Accent.TButton", foreground=[("disabled", "#8fa596")])
     style.configure(
-        "Small.Danger.TButton", foreground=RED, font=FONT_SMALL, padding=(10, 3)
+        "Small.Danger.TButton", foreground=RED, font=FONT_SMALL, padding=(9, 2)
     )
+
+    # Скруглённые серые рамки панелей: карточки, таблицы, фильтры, выбор.
+    rounded_frame(style, "Card.TFrame", "card")
+    rounded_frame(style, "Choice.TFrame", "choice")
+    rounded_frame(style, "ChoiceOn.TFrame", "choice_on")
 
     # Вкладки-закладки в шапке и сегментные фильтры — это Radiobutton.
     style.configure(
         "Tab.Toolbutton",
         background=BG,
         foreground=MUTED,
-        padding=(18, 8),
+        padding=(16, 7),
         bordercolor=BG,
         lightcolor=BG,
         darkcolor=BG,
-        font=("Segoe UI", 11),
+        font=FONT_BOLD,
     )
     style.map(
         "Tab.Toolbutton",
-        background=[("selected", BG_SOFT), ("active", BG_SOFT)],
         foreground=[("selected", INK)],
-        bordercolor=[("selected", LINE)],
     )
-    style.configure("Seg.Toolbutton", background=BG, padding=(12, 5), **_no_3d())
+    # Выбранная вкладка — закладка со скруглёнными верхними углами.
+    style.element_create(
+        "Tab.rounded",
+        "image",
+        image("tab_off"),
+        ("selected", image("tab_on")),
+        ("active", image("tab_on")),
+        border=8,
+        sticky="nsew",
+    )
+    style.layout(
+        "Tab.Toolbutton",
+        [
+            (
+                "Tab.rounded",
+                {
+                    "sticky": "nsew",
+                    "children": [
+                        (
+                            "Toolbutton.padding",
+                            {
+                                "sticky": "nsew",
+                                "children": [("Toolbutton.label", {"sticky": "nsew"})],
+                            },
+                        )
+                    ],
+                },
+            )
+        ],
+    )
+    style.configure(
+        "Seg.Toolbutton", background=BG, foreground=MUTED, padding=(12, 3), **_no_3d()
+    )
     style.map(
         "Seg.Toolbutton",
         background=[("selected", ACCENT_SOFT), ("active", BG_SOFT)],
@@ -124,7 +166,7 @@ def setup_style(root: tk.Tk) -> None:
         "image",
         image("field"),
         ("focus", image("field_focus")),
-        border=8,
+        border=6,
         sticky="nsew",
     )
     style.layout(
@@ -147,7 +189,63 @@ def setup_style(root: tk.Tk) -> None:
             )
         ],
     )
-    style.configure("TEntry", padding=(8, 2))
+    style.configure("TEntry", padding=(8, 4))
+    style.layout(
+        "TCombobox",
+        [
+            (
+                "Rounded.field",
+                {
+                    "sticky": "nsew",
+                    "children": [
+                        ("Combobox.downarrow", {"side": "right", "sticky": "ns"}),
+                        (
+                            "Combobox.padding",
+                            {
+                                "expand": "1",
+                                "sticky": "nsew",
+                                "children": [("Combobox.textarea", {"sticky": "nsew"})],
+                            },
+                        ),
+                    ],
+                },
+            )
+        ],
+    )
+    style.layout(
+        "TSpinbox",
+        [
+            (
+                "Rounded.field",
+                {
+                    "sticky": "nsew",
+                    "children": [
+                        (
+                            "null",
+                            {
+                                "side": "right",
+                                "sticky": "",
+                                "children": [
+                                    ("Spinbox.uparrow", {"side": "top", "sticky": "e"}),
+                                    (
+                                        "Spinbox.downarrow",
+                                        {"side": "bottom", "sticky": "e"},
+                                    ),
+                                ],
+                            },
+                        ),
+                        (
+                            "Spinbox.padding",
+                            {
+                                "sticky": "nsew",
+                                "children": [("Spinbox.textarea", {"sticky": "nsew"})],
+                            },
+                        ),
+                    ],
+                },
+            )
+        ],
+    )
     flat_box = {"bordercolor": LINE, "lightcolor": BG, "darkcolor": BG}
     style.configure(
         "TCombobox",
@@ -176,7 +274,7 @@ def setup_style(root: tk.Tk) -> None:
     style.configure("PageBold.TLabel", background=PAGE, font=FONT_BOLD)
     style.configure("Page.TCheckbutton", background=PAGE)
     style.map("Page.TCheckbutton", background=[("active", PAGE)])
-    style.configure("Title.TLabel", background=PAGE)
+    style.configure("Title.TLabel", background=BG)
     style.configure(
         "PageGreen.TLabel", background=PAGE, foreground=ACCENT, font=FONT_BOLD
     )
@@ -204,7 +302,7 @@ def image(name: str) -> tk.PhotoImage:
 def rounded_button(style, style_name, normal, hover, disabled=None) -> None:
     """Делает кнопку стиля style_name со скруглёнными углами.
 
-    Фон кнопки — картинка со скруглённым прямоугольником. Параметр border=8
+    Фон кнопки — картинка со скруглённым прямоугольником. Параметр border=6
     говорит Tk не растягивать углы картинки, а тянуть только середину.
 
     Args:
@@ -219,7 +317,7 @@ def rounded_button(style, style_name, normal, hover, disabled=None) -> None:
         states.insert(0, ("disabled", image(disabled)))
     element = style_name + ".rounded"
     style.element_create(
-        element, "image", image(normal), *states, border=8, sticky="nsew"
+        element, "image", image(normal), *states, border=6, sticky="nsew"
     )
     style.layout(
         style_name,
@@ -241,6 +339,22 @@ def rounded_button(style, style_name, normal, hover, disabled=None) -> None:
             )
         ],
     )
+
+
+def rounded_frame(style, style_name: str, picture: str) -> None:
+    """Делает рамку (ttk.Frame) со скруглёнными углами.
+
+    Как и у кнопок, фон рамки — картинка, у которой Tk растягивает только
+    середину, а скруглённые углы оставляет как есть.
+
+    Args:
+        style: Объект ttk.Style.
+        style_name: Имя стиля, например «Card.TFrame».
+        picture: Имя картинки из папки img.
+    """
+    element = style_name + ".rounded"
+    style.element_create(element, "image", image(picture), border=8, sticky="nsew")
+    style.layout(style_name, [(element, {"sticky": "nsew"})])
 
 
 def _no_3d() -> dict:
@@ -279,10 +393,10 @@ def card(parent, title=None, note=None, action=None) -> ttk.Frame:
         Внутренняя рамка карточки, в неё кладутся поля.
         Саму карточку размещать через .master.
     """
-    outer = tk.Frame(parent, bg=BG, highlightthickness=1, highlightbackground=LINE)
+    outer = ttk.Frame(parent, style="Card.TFrame", padding=2)
     head_label = None
     if title:
-        head = ttk.Frame(outer, padding=(14, 10))
+        head = ttk.Frame(outer, padding=(12, 8))
         head.pack(fill="x")
         head_label = ttk.Label(head, text=title, style="Bold.TLabel")
         head_label.pack(side="left")
@@ -293,7 +407,7 @@ def card(parent, title=None, note=None, action=None) -> ttk.Frame:
                 head, text=action[0], style="Small.TButton", command=action[1]
             ).pack(side="right")
         ttk.Frame(outer, style="Line.TFrame", height=1).pack(fill="x")
-    inner = ttk.Frame(outer, padding=14)
+    inner = ttk.Frame(outer, padding=12)
     inner.pack(fill="both", expand=True)
     inner.title_label = head_label  # чтобы менять заголовок карточки
     return inner
@@ -311,8 +425,10 @@ def segmented(parent, options, variable, command) -> ttk.Frame:
     Returns:
         Рамка с кнопками-сегментами.
     """
-    frame = tk.Frame(parent, bg=LINE, padx=1, pady=1)
-    for text, value in options:
+    frame = ttk.Frame(parent, style="Card.TFrame", padding=2)
+    for index, (text, value) in enumerate(options):
+        if index:
+            ttk.Frame(frame, style="Line.TFrame", width=1).pack(side="left", fill="y")
         ttk.Radiobutton(
             frame,
             text=text,
@@ -320,7 +436,7 @@ def segmented(parent, options, variable, command) -> ttk.Frame:
             variable=variable,
             command=command,
             style="Seg.Toolbutton",
-        ).pack(side="left", padx=(0, 1))
+        ).pack(side="left")
     return frame
 
 
@@ -336,11 +452,11 @@ class Banner(tk.Frame):
             parent: Родительский виджет.
             **pack_options: Как размещать плашку при показе (параметры pack).
         """
-        super().__init__(parent, padx=12, pady=8)
+        super().__init__(parent, padx=12, pady=7)
         self.pack_options = pack_options
         self.icon = tk.Label(self, font=FONT_BOLD)
         self.icon.pack(side="left", padx=(0, 8))
-        self.text = tk.Label(self, justify="left", anchor="w", font=FONT)
+        self.text = tk.Label(self, justify="left", anchor="w", font=FONT_SMALL)
         self.text.pack(side="left", fill="x", expand=True)
         self.bind("<Configure>", lambda e: self.text.config(wraplength=e.width - 60))
 
@@ -366,15 +482,17 @@ class Banner(tk.Frame):
 class ChoiceCards(ttk.Frame):
     """Выбор одного варианта карточками (роль при регистрации, персонаж)."""
 
-    def __init__(self, parent, columns: int = 1):
+    def __init__(self, parent, columns: int = 1, wrap: int = 0):
         """Создаёт пустой список карточек.
 
         Args:
             parent: Родительский виджет.
             columns: Сколько карточек в одной строке.
+            wrap: Ширина переноса подписи в пикселях (0 — без переноса).
         """
         super().__init__(parent)
         self.columns = columns
+        self.wrap = wrap
         self.value = None
         self.cards = {}
 
@@ -389,7 +507,7 @@ class ChoiceCards(ttk.Frame):
         self.cards = {}
         self.value = None
         for index, (value, title, subtitle) in enumerate(options):
-            box = tk.Frame(self, bg=BG, highlightthickness=1, padx=10, pady=8)
+            box = ttk.Frame(self, style="Choice.TFrame", padding=(10, 6))
             box.grid(
                 row=index // self.columns,
                 column=index % self.columns,
@@ -397,7 +515,7 @@ class ChoiceCards(ttk.Frame):
                 padx=(0, 8) if index % self.columns < self.columns - 1 else 0,
                 pady=(0, 8),
             )
-            mark = tk.Label(box, font=("Segoe UI", 13), bg=BG)
+            mark = tk.Label(box, font=("Segoe UI", 11), bg=BG)
             mark.pack(side="left", padx=(0, 8))
             texts = tk.Frame(box, bg=BG)
             texts.pack(side="left", fill="x")
@@ -405,10 +523,17 @@ class ChoiceCards(ttk.Frame):
                 fill="x"
             )
             tk.Label(
-                texts, text=subtitle, fg=MUTED, bg=BG, anchor="w", justify="left"
+                texts,
+                text=subtitle,
+                fg=MUTED,
+                bg=BG,
+                anchor="w",
+                justify="left",
+                font=FONT_SMALL,
+                wraplength=self.wrap,
             ).pack(fill="x")
-            parts = [box, mark, texts] + list(texts.winfo_children())
-            for widget in parts:
+            parts = [mark, texts] + list(texts.winfo_children())
+            for widget in [box] + parts:
                 widget.bind("<Button-1>", lambda e, v=value: self.select(v))
                 widget.config(cursor="hand2")
             self.cards[value] = (box, mark, parts)
@@ -436,27 +561,32 @@ class ChoiceCards(ttk.Frame):
             bg = GREEN_SOFT if chosen else BG
             for widget in parts:
                 widget.config(bg=bg)
-            box.config(highlightbackground=ACCENT if chosen else LINE)
+            box.config(style="ChoiceOn.TFrame" if chosen else "Choice.TFrame")
             mark.config(text="◉" if chosen else "○", fg=ACCENT if chosen else MUTED)
 
 
 class MainFrame(ttk.Frame):
-    """Окно кабинета: шапка с названием, вкладками-закладками и пользователем."""
+    """Окно кабинета, как в образцах: шапка, вкладки, строка итогов внизу."""
 
-    def __init__(self, app, tabs):
-        """Создаёт шапку и вкладки.
+    def __init__(self, app, subtitle: str, tabs):
+        """Создаёт шапку, вкладки и строку итогов.
 
         Args:
             app: Приложение (app.user, app.logout, app.show_profile).
+            subtitle: Подпись под названием программы.
             tabs: Список пар (название вкладки, класс вкладки).
         """
         super().__init__(app)
         self.app = app
-        header = ttk.Frame(self, padding=(20, 12, 20, 0))
+        header = ttk.Frame(self, padding=(16, 10, 16, 0))
         header.pack(fill="x")
-        ttk.Label(header, text="Game Master Hub", style="Logo.TLabel").pack(
-            side="left", anchor="n", pady=(4, 0)
-        )
+
+        brand = ttk.Frame(header)
+        brand.pack(side="left", anchor="n", pady=(0, 8))
+        names = ttk.Frame(brand)
+        names.pack(side="left")
+        ttk.Label(names, text="Game Master Hub", style="Logo.TLabel").pack(anchor="w")
+        ttk.Label(names, text=subtitle, style="Small.TLabel").pack(anchor="w")
 
         user = ttk.Frame(header)
         user.pack(side="right", anchor="n")
@@ -466,17 +596,26 @@ class MainFrame(ttk.Frame):
         links = ttk.Frame(user)
         links.pack(anchor="e")
         role = "Мастер" if app.user["role"] == "GM" else "Игрок"
-        ttk.Label(links, text=role, style="Muted.TLabel").pack(side="left")
-        link(links, "Профиль", app.show_profile, color=ACCENT).pack(
-            side="left", padx=(10, 0)
-        )
-        link(links, "Выйти", app.logout).pack(side="left", padx=(10, 0))
+        ttk.Label(links, text=role, style="Small.TLabel").pack(side="left")
+        for text, command, color in (
+            ("Профиль", app.show_profile, ACCENT),
+            ("Выйти", app.logout, RED),
+        ):
+            link(links, text, command, color=color).pack(side="left", padx=(8, 0))
+            links.winfo_children()[-1].config(font=FONT_SMALL)
 
         self.current = tk.IntVar(value=0)
         self.tab_buttons = []
         bar = ttk.Frame(header)
-        bar.pack(side="left", anchor="s", padx=(60, 0), pady=(16, 0))
+        bar.pack(side="left", anchor="s", padx=(48, 0))
         ttk.Frame(self, style="Line.TFrame", height=1).pack(fill="x")
+
+        # Строка итогов внизу окна (как в образцах): белая, над ней линия.
+        footer = ttk.Frame(self, padding=(16, 6))
+        footer.pack(side="bottom", fill="x")
+        ttk.Frame(self, style="Line.TFrame", height=1).pack(side="bottom", fill="x")
+        self.status = ttk.Label(footer, style="Small.TLabel")
+        self.status.pack(anchor="w")
 
         body = ttk.Frame(self, style="Page.TFrame")
         body.pack(fill="both", expand=True)
@@ -484,8 +623,10 @@ class MainFrame(ttk.Frame):
         body.columnconfigure(0, weight=1)
         self.tabs = []
         for index, (title, tab_class) in enumerate(tabs):
+            holder = tk.Frame(bar, bg=BG)
+            holder.pack(side="left")
             button = ttk.Radiobutton(
-                bar,
+                holder,
                 text=title,
                 value=index,
                 variable=self.current,
@@ -509,20 +650,20 @@ class MainFrame(ttk.Frame):
             self.current.set(index)
         tab = self.tabs[self.current.get()]
         tab.tkraise()
+        self.set_status("")
         tab.refresh()
         self.on_tab_shown()
 
     def on_tab_shown(self) -> None:
         """Вызывается после смены вкладки; переопределяется в окнах."""
 
-    def set_tab_title(self, index: int, title: str) -> None:
-        """Меняет подпись вкладки, например «Заявки (3)».
+    def set_status(self, text: str) -> None:
+        """Пишет текст в строку итогов внизу окна.
 
         Args:
-            index: Номер вкладки.
-            title: Новая подпись.
+            text: Текст, например «Предстоящих: 4  Свободных мест: 8».
         """
-        self.tab_buttons[index].config(text=title)
+        self.status.config(text=text)
 
 
 def short_name(full_name: str) -> str:
@@ -554,30 +695,61 @@ def is_soon(db_value: str, days: int = 3) -> bool:
     return datetime.now() <= when <= datetime.now() + timedelta(days=days)
 
 
-def get_text(widget: tk.Text) -> str:
-    """Возвращает текст многострочного поля.
+class RoundText(ttk.Frame):
+    """Многострочное поле ввода в скруглённой рамке.
+
+    Attributes:
+        text: Само поле Text внутри рамки.
+    """
+
+    def __init__(self, parent, height: int = 5):
+        """Создаёт поле.
+
+        Args:
+            parent: Родительский виджет.
+            height: Высота в строках.
+        """
+        super().__init__(parent, style="Card.TFrame", padding=3)
+        self.text = tk.Text(
+            self,
+            height=height,
+            width=40,
+            wrap="word",
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
+            padx=8,
+            pady=5,
+            font=FONT,
+            bg=BG,
+        )
+        self.text.pack(fill="both", expand=True)
+
+
+def get_text(widget: RoundText) -> str:
+    """Возвращает текст многострочного поля без пробелов по краям.
 
     Args:
-        widget: Поле Text.
+        widget: Поле RoundText.
 
     Returns:
-        Текст без последнего перевода строки.
+        Текст.
     """
-    return widget.get("1.0", "end-1c").strip()
+    return widget.text.get("1.0", "end-1c").strip()
 
 
-def set_text(widget: tk.Text, value: str | None) -> None:
+def set_text(widget: RoundText, value: str | None) -> None:
     """Заменяет текст многострочного поля.
 
     Args:
-        widget: Поле Text.
+        widget: Поле RoundText.
         value: Новый текст.
     """
-    widget.delete("1.0", "end")
-    widget.insert("1.0", value or "")
+    widget.text.delete("1.0", "end")
+    widget.text.insert("1.0", value or "")
 
 
-def make_text(parent, height: int = 5) -> tk.Text:
+def make_text(parent, height: int = 5) -> RoundText:
     """Создаёт многострочное поле в общем стиле.
 
     Args:
@@ -585,22 +757,9 @@ def make_text(parent, height: int = 5) -> tk.Text:
         height: Высота в строках.
 
     Returns:
-        Поле Text.
+        Поле RoundText (текст внутри — в атрибуте .text).
     """
-    return tk.Text(
-        parent,
-        height=height,
-        width=40,
-        wrap="word",
-        relief="flat",
-        highlightthickness=1,
-        highlightbackground=LINE,
-        highlightcolor=ACCENT,
-        padx=8,
-        pady=6,
-        font=FONT,
-        bg=BG,
-    )
+    return RoundText(parent, height)
 
 
 def field(parent, label: str, page: bool = False) -> ttk.Label:
@@ -614,7 +773,7 @@ def field(parent, label: str, page: bool = False) -> ttk.Label:
     Returns:
         Метка (уже размещена через pack).
     """
-    style = "Page.TLabel" if page else "Muted.TLabel"
+    style = "PageField.TLabel" if page else "Field.TLabel"
     widget = ttk.Label(parent, text=label, style=style)
-    widget.pack(anchor="w", pady=(8, 2))
+    widget.pack(anchor="w", pady=(7, 2))
     return widget

@@ -33,6 +33,7 @@ from gm_hub.ui.common import (
     FONT,
     FONT_BOLD,
     FONT_SMALL,
+    FONT_SMALL_BOLD,
     GREEN_SOFT,
     HEAD,
     INK,
@@ -46,6 +47,7 @@ from gm_hub.ui.common import (
 
 ROW_LINE = "#e7e9ef"  # разделитель строк
 PENDING_ROW = "#fff6e3"  # строка с новой заявкой
+SOON_ROW = "#eef5ef"  # сессия скоро — запись истекает (п. 4.1.6 ТЗ)
 
 # Цвета таблеток: (фон, текст, рамка)
 PILLS = {
@@ -79,9 +81,9 @@ class Pill(tk.Canvas):
             kind: Вид из словаря PILLS.
             bg: Цвет фона вокруг таблетки (цвет строки).
         """
-        font = tkfont.Font(font=FONT_BOLD if kind != "chip" else FONT)
-        width = font.measure(text) + 22
-        height = font.metrics("linespace") + 8
+        font = tkfont.Font(font=FONT_SMALL_BOLD if kind != "chip" else FONT_SMALL)
+        width = font.measure(text) + 18
+        height = font.metrics("linespace") + 4
         super().__init__(
             parent, width=width, height=height, bg=bg, highlightthickness=0, bd=0
         )
@@ -99,7 +101,7 @@ class Pill(tk.Canvas):
         self.create_text(width // 2, height // 2, text=text, fill=color, font=font)
 
 
-class RowTable(tk.Frame):
+class RowTable(ttk.Frame):
     """Таблица или список строк в стиле макетов.
 
     Заголовок и все строки лежат в одной общей сетке (grid), поэтому
@@ -121,12 +123,7 @@ class RowTable(tk.Frame):
             on_select: Функция, вызываемая с id строки при её выборе.
             border: Рамка вокруг таблицы (внутри карточки не нужна).
         """
-        super().__init__(
-            parent,
-            bg=BG,
-            highlightthickness=1 if border else 0,
-            highlightbackground=LINE,
-        )
+        super().__init__(parent, style="Card.TFrame" if border else "TFrame", padding=2)
         self.columns = columns
         self.on_select = on_select
         self.selected = None
@@ -136,7 +133,11 @@ class RowTable(tk.Frame):
         self.head_labels = []
 
         # Прокрутка: сетка лежит в рамке внутри Canvas, крутится колесом мыши.
-        self.canvas = tk.Canvas(self, bg=BG, highlightthickness=0, bd=0)
+        # Ширина области = сумма столбцов с отступами (иначе у Canvas свой размер).
+        width = sum(w for _, w, _ in columns) + 16 * len(columns) + 16
+        self.canvas = tk.Canvas(
+            self, bg=BG, highlightthickness=0, bd=0, width=width, height=100
+        )
         self.canvas.pack(fill="both", expand=True)
         self.body = tk.Frame(self.canvas, bg=BG)
         window = self.canvas.create_window(0, 0, window=self.body, anchor="nw")
@@ -160,7 +161,7 @@ class RowTable(tk.Frame):
                     self.body, text=title, bg=HEAD, fg=INK, font=FONT_BOLD, anchor="w"
                 )
                 label.grid(row=0, column=index, sticky="ew", padx=self._pad(index))
-                label.config(pady=9, cursor="hand2")
+                label.config(pady=6, cursor="hand2")
                 label.bind("<Button-1>", lambda e, i=index: self.sort_by(i))
                 self.head_labels.append(label)
             tk.Frame(self.body, bg=LINE, height=1).grid(
@@ -213,10 +214,11 @@ class RowTable(tk.Frame):
             row_id: id записи в БД — по нему строку потом выбирают.
             cells: Ячейки по числу столбцов (формат — в описании модуля).
             sort: Значения для сортировки по столбцам (по умолчанию — текст).
-            highlight: Подсветить строку жёлтым (новая заявка).
+            highlight: Подсветка строки: True — жёлтая (новая заявка),
+                "soon" — зелёная (сессия скоро).
         """
         self.empty.grid_remove()
-        bg = PENDING_ROW if highlight else BG
+        bg = {True: PENDING_ROW, "soon": SOON_ROW}.get(highlight, BG)
         back = tk.Frame(self.body, bg=bg)  # подложка — цвет всей строки
         widgets = []
         for index, (cell, (_, width, _)) in enumerate(zip(cells, self.columns)):
@@ -238,7 +240,7 @@ class RowTable(tk.Frame):
         row["back"].lower()  # подложка под ячейками
         for index, widget in enumerate(row["cells"]):
             widget.grid(
-                row=grid_row, column=index, sticky="w", padx=self._pad(index), pady=9
+                row=grid_row, column=index, sticky="w", padx=self._pad(index), pady=6
             )
         row["line"].grid(row=grid_row + 1, column=0, columnspan=span, sticky="ew")
 
@@ -247,9 +249,10 @@ class RowTable(tk.Frame):
         if not isinstance(cell, tuple):
             cell = ("text", "" if cell is None else str(cell))
         kind = cell[0]
-        if kind in ("text", "bold", "muted", "small"):
-            font = {"bold": FONT_BOLD, "small": FONT_SMALL + ("bold",)}.get(kind, FONT)
-            color = MUTED if kind in ("muted", "small") else INK
+        if kind in ("text", "bold", "muted", "small", "sub"):
+            fonts = {"bold": FONT_BOLD, "small": FONT_SMALL_BOLD, "sub": FONT_SMALL}
+            font = fonts.get(kind, FONT)
+            color = MUTED if kind in ("muted", "small", "sub") else INK
             return tk.Label(
                 parent,
                 text=cell[1],
@@ -273,12 +276,15 @@ class RowTable(tk.Frame):
                 button.pack(side="left", padx=(0, 6))
             return box
         box = tk.Frame(parent, bg=bg)  # line или stack
-        for part in cell[1]:
+        for index, part in enumerate(cell[1]):
+            # серые строки под названием в stack — мелким шрифтом, как в образцах
+            if kind == "stack" and index > 0 and part[0] == "muted":
+                part = ("sub", part[1])
             widget = self._make(box, part, bg, width)
             if kind == "line":
-                widget.pack(side="left", padx=(0, 6))
+                widget.pack(side="left", padx=(0, 3))
             else:
-                widget.pack(anchor="w", pady=1)
+                widget.pack(anchor="w")
         return box
 
     def _seats(self, parent, taken: int, free: int, bg):

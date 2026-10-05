@@ -56,11 +56,11 @@ class App(tk.Tk):
 
     def show_login(self) -> None:
         """Открывает окно входа."""
-        self.show(LoginFrame, "Вход", "520x470")
+        self.show(LoginFrame, "Вход", "470x430")
 
     def show_register(self) -> None:
         """Открывает окно регистрации."""
-        self.show(RegisterFrame, "Регистрация", "560x640")
+        self.show(RegisterFrame, "Регистрация", "500x570")
 
     def open_main(self, user) -> None:
         """Открывает окно по роли пользователя (п. 4.2.1 ТЗ).
@@ -70,9 +70,9 @@ class App(tk.Tk):
         """
         self.user = user
         if user["role"] == "GM":
-            self.show(GMFrame, "Мастер", "1400x800")
+            self.show(GMFrame, "Мастер", "1240x700")
         else:
-            self.show(PlayerFrame, "Игрок", "1400x800")
+            self.show(PlayerFrame, "Игрок", "1300x700")
 
     def show_profile(self) -> None:
         """Открывает окно профиля текущего пользователя."""

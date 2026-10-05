@@ -18,6 +18,7 @@ from gm_hub.ui.common import (
     card,
     field,
     get_text,
+    is_soon,
     make_text,
     segmented,
     set_text,
@@ -42,6 +43,7 @@ class GMFrame(MainFrame):
         """
         super().__init__(
             app,
+            "Кабинет Мастера",
             [
                 ("Расписание", ScheduleTab),
                 ("Заявки", SignupsTab),
@@ -49,12 +51,6 @@ class GMFrame(MainFrame):
                 ("База мира", WorldTab),
             ],
         )
-
-    def on_tab_shown(self):
-        """Обновляет счётчик новых заявок на вкладке «Заявки»."""
-        mine = games.list_games(self.app.conn, gm_id=self.app.user["id"])
-        pending = sum(game["pending"] for game in mine)
-        self.set_tab_title(1, f"Заявки ({pending})" if pending else "Заявки")
 
 
 class Tab(ttk.Frame):
@@ -69,6 +65,10 @@ class Tab(ttk.Frame):
         """
         super().__init__(parent, padding=16, style="Page.TFrame")
         self.app = app
+
+    def status(self, text: str) -> None:
+        """Пишет итоги вкладки в строку внизу окна."""
+        self.master.master.set_status(text)
 
     def my_games(self, status: str = "PLANNED"):
         """Возвращает сессии текущего Мастера с нужным статусом."""
@@ -123,13 +123,11 @@ class ScheduleTab(Tab):
             ],
             on_select=self.on_select,
         )
-        self.table.pack(fill="both", expand=True, pady=12)
-        self.summary = ttk.Label(self, style="Page.TLabel")
-        self.summary.pack(anchor="w")
+        self.table.pack(fill="both", expand=True, pady=(12, 0))
 
         field(form, "Название *")
         self.title_entry = ttk.Entry(form, width=34)
-        self.title_entry.pack(fill="x", ipady=2)
+        self.title_entry.pack(fill="x")
         field(form, "Описание для игроков")
         self.description = make_text(form, height=3)
         self.description.pack(fill="x")
@@ -140,10 +138,10 @@ class ScheduleTab(Tab):
         time_box.pack(side="left", fill="x", expand=True)
         field(date_box, "Дата * (ДД.ММ.ГГГГ)")
         self.date_entry = ttk.Entry(date_box, width=14)
-        self.date_entry.pack(fill="x", ipady=2)
+        self.date_entry.pack(fill="x")
         field(time_box, "Время * (ЧЧ:ММ)")
         self.time_entry = ttk.Entry(time_box, width=8)
-        self.time_entry.pack(fill="x", ipady=2)
+        self.time_entry.pack(fill="x")
         field(form, "Лимит мест *")
         self.max_players = ttk.Spinbox(form, from_=1, to=50, width=8)
         self.max_players.pack(anchor="w")
@@ -153,7 +151,7 @@ class ScheduleTab(Tab):
         self.save_button = ttk.Button(
             form, text="Опубликовать", style="Accent.TButton", command=self.on_save
         )
-        self.save_button.pack(fill="x", pady=(14, 0), ipady=3)
+        self.save_button.pack(fill="x", pady=(14, 0))
         self.error = Banner(form, fill="x", pady=(10, 0), before=self.save_button)
         self.clear_form()
 
@@ -185,12 +183,13 @@ class ScheduleTab(Tab):
                     game["pending"],
                     game["status"],
                 ],
+                highlight="soon" if is_soon(game["scheduled_at"]) else False,
             )
         planned = self.my_games()
         free = sum(free_of(game) for game in planned)
         pending = sum(game["pending"] for game in planned)
-        self.summary.config(
-            text=f"Предстоящих: {len(planned)}     Свободных мест всего: {free}     "
+        self.status(
+            f"Предстоящих: {len(planned)}      Свободных мест всего: {free}      "
             f"Заявок ждут решения: {pending}"
         )
 
@@ -282,7 +281,7 @@ class SignupsTab(Tab):
 
         info = card(self, "Карточка персонажа", "только чтение")
         info.master.pack(side="right", fill="y", padx=(16, 0))
-        self.char_name = ttk.Label(info, font=("Georgia", 16, "bold"), width=22)
+        self.char_name = ttk.Label(info, font=("Georgia", 15, "bold"), width=19)
         self.char_name.pack(anchor="w")
         self.char_owner = ttk.Label(info, style="Muted.TLabel")
         self.char_owner.pack(anchor="w", pady=(0, 10))
@@ -298,7 +297,7 @@ class SignupsTab(Tab):
         ttk.Label(info, text="ПРЕДЫСТОРИЯ", style="Small.TLabel").pack(
             anchor="w", pady=(14, 4)
         )
-        self.char_story = ttk.Label(info, wraplength=250, justify="left")
+        self.char_story = ttk.Label(info, wraplength=230, justify="left")
         self.char_story.pack(anchor="w")
 
         top = ttk.Frame(self, style="Page.TFrame")
@@ -319,17 +318,17 @@ class SignupsTab(Tab):
         self.table = RowTable(
             self,
             [
-                ("Персонаж", 150, True),
-                ("Игрок", 100, False),
-                ("Комментарий", 130, True),
-                ("Подана", 90, False),
-                ("Статус", 135, False),
-                ("Действия", 250, False),
+                ("Персонаж", 160, True),
+                ("Игрок", 95, False),
+                ("Комментарий", 120, True),
+                ("Подана", 85, False),
+                ("Статус", 120, False),
+                ("Действия", 200, False),
             ],
             on_select=self.on_select,
         )
-        self.table.pack(fill="both", expand=True, pady=12)
-        self.blocked = Banner(self, fill="x")
+        self.table.pack(fill="both", expand=True, pady=(12, 0))
+        self.blocked = Banner(self, fill="x", pady=(12, 0))
 
     def refresh(self):
         """Перечитывает список своих сессий и заявки выбранной сессии."""
@@ -451,6 +450,14 @@ class SignupsTab(Tab):
                 ],
                 highlight=pending,
             )
+        counts = [
+            sum(1 for r in self.rows.values() if r["status"] == code)
+            for code in ("PENDING", "CONFIRMED", "REJECTED")
+        ]
+        self.status(
+            f"На рассмотрении: {counts[0]}      Подтверждено: {counts[1]}      "
+            f"Отклонено: {counts[2]}"
+        )
         if free <= 0 and has_pending:
             self.blocked.show(
                 f"Подтвердить заявку нельзя. На «{game['title']}» уже подтверждено "
@@ -624,7 +631,7 @@ class WorldTab(Tab):
             side="left"
         )
         self.search = ttk.Entry(top, width=28)
-        self.search.pack(side="left", padx=6, ipady=2)
+        self.search.pack(side="left", padx=6)
         self.search.bind("<KeyRelease>", lambda e: self.refresh())
         ttk.Button(
             top, text="+ Новая запись", style="Accent.TButton", command=self.clear_form
@@ -646,7 +653,7 @@ class WorldTab(Tab):
         category_box.pack(side="left")
         field(title_box, "Заголовок *")
         self.title_entry = ttk.Entry(title_box)
-        self.title_entry.pack(fill="x", ipady=2)
+        self.title_entry.pack(fill="x")
         field(category_box, "Категория *")
         self.category = ttk.Combobox(
             category_box, values=list(notes.CATEGORY_NAMES.values()), state="readonly"
@@ -672,7 +679,12 @@ class WorldTab(Tab):
         conn, user = self.app.conn, self.app.user
         everything = notes.list_world_notes(conn, user)
         # Подписи фильтров с количеством записей: «NPC · 6».
-        for button, (name, code) in zip(self.filter_bar.winfo_children(), self.FILTERS):
+        buttons = [
+            w
+            for w in self.filter_bar.winfo_children()
+            if isinstance(w, ttk.Radiobutton)
+        ]
+        for button, (name, code) in zip(buttons, self.FILTERS):
             count = sum(1 for n in everything if not code or n["category"] == code)
             button.config(text=f"{name} · {count}")
         self.table.clear("Записей нет")

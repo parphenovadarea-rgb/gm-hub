@@ -42,6 +42,7 @@ class PlayerFrame(MainFrame):
         """
         super().__init__(
             app,
+            "Кабинет Игрока",
             [
                 ("Витрина сессий", ShowcaseTab),
                 ("Мои записи", MySignupsTab),
@@ -63,6 +64,10 @@ class Tab(ttk.Frame):
         super().__init__(parent, padding=16, style="Page.TFrame")
         self.app = app
 
+    def status(self, text: str) -> None:
+        """Пишет итоги вкладки в строку внизу окна."""
+        self.master.master.set_status(text)
+
 
 class ShowcaseTab(Tab):
     """Вкладка «Витрина сессий»: выбор Мастера и запись на игру (макет 07)."""
@@ -79,21 +84,25 @@ class ShowcaseTab(Tab):
 
         # Слева — выбор Мастера с поиском по имени.
         left = ttk.Frame(self, style="Page.TFrame")
-        left.pack(side="left", fill="y", padx=(0, 16))
+        left.pack(side="left", fill="y", padx=(0, 12))
         ttk.Label(left, text="Мастер", style="PageBold.TLabel").pack(anchor="w")
         ttk.Label(left, text="⌕ найти по имени", style="Page.TLabel").pack(anchor="w")
-        self.search = ttk.Entry(left, width=20)
-        self.search.pack(fill="x", pady=(4, 10), ipady=2)
+        self.search = ttk.Entry(left, width=16)
+        self.search.pack(fill="x", pady=(4, 10))
         self.search.bind("<KeyRelease>", lambda e: self.load_masters())
         self.masters = RowTable(
-            left, [("Мастера", 170, True)], header=False, on_select=self.on_master
+            left, [("Мастера", 150, True)], header=False, on_select=self.on_master
         )
         self.masters.pack(fill="y", expand=True)
 
         form = card(self, "Запись на сессию")
         form.master.pack(side="right", fill="y", padx=(16, 0))
         self.info_title = ttk.Label(
-            form, text="Выберите сессию в таблице", style="Bold.TLabel", width=30
+            form,
+            text="Выберите сессию в таблице",
+            style="Bold.TLabel",
+            width=28,
+            wraplength=230,
         )
         self.info_title.pack(anchor="w")
         self.info_when = ttk.Label(form, style="Muted.TLabel")
@@ -103,11 +112,11 @@ class ShowcaseTab(Tab):
         self.characters.pack(fill="x")
         field(form, "Комментарий Мастеру (необязательно)")
         self.comment = ttk.Entry(form)
-        self.comment.pack(fill="x", ipady=2)
+        self.comment.pack(fill="x")
         self.send_button = ttk.Button(
             form, text="Отправить заявку", style="Accent.TButton", command=self.on_send
         )
-        self.send_button.pack(fill="x", pady=(14, 0), ipady=3)
+        self.send_button.pack(fill="x", pady=(14, 0))
         self.error = Banner(form, fill="x", pady=(10, 0), before=self.send_button)
         ttk.Label(
             form,
@@ -134,10 +143,10 @@ class ShowcaseTab(Tab):
         self.table = RowTable(
             self,
             [
-                ("Сессия", 230, True),
-                ("Когда", 150, False),
-                ("Свободно", 80, False),
-                ("Моя заявка", 150, False),
+                ("Сессия", 210, True),
+                ("Когда", 140, False),
+                ("Свободно", 75, False),
+                ("Моя заявка", 125, False),
             ],
             on_select=self.on_select,
         )
@@ -201,6 +210,7 @@ class ShowcaseTab(Tab):
             my_status.setdefault(row["game_id"], []).append(row["status"])
 
         self.table.clear("У этого Мастера нет предстоящих сессий")
+        shown = 0
         for game in games.list_games(conn, gm_id=self.master_id):
             free = games.free_seats(game["max_players"], game["confirmed"])
             if self.only_free.get() and free <= 0:
@@ -212,6 +222,7 @@ class ShowcaseTab(Tab):
             if is_soon(game["scheduled_at"]):
                 when.append(("small", "СКОРО"))
             statuses = my_status.get(game["id"], [])
+            shown += 1
             mine = (
                 ("pill", signups.STATUS_NAMES[statuses[0]], STATUS_PILL[statuses[0]])
                 if statuses
@@ -236,6 +247,7 @@ class ShowcaseTab(Tab):
                     statuses[0] if statuses else "",
                 ],
             )
+        self.status(f"Сессий у Мастера: {shown}")
 
     def on_select(self, game_id):
         """Показывает выбранную сессию в форме заявки."""
@@ -307,9 +319,7 @@ class MySignupsTab(Tab):
                 ("Решение", 100, False),
             ],
         )
-        self.table.pack(fill="both", expand=True, pady=12)
-        self.summary = ttk.Label(self, style="Page.TLabel")
-        self.summary.pack(anchor="w")
+        self.table.pack(fill="both", expand=True, pady=(12, 0))
 
     def refresh(self):
         """Перечитывает заявки текущего Игрока (сценарий 14)."""
@@ -359,8 +369,8 @@ class MySignupsTab(Tab):
             if upcoming
             else "—"
         )
-        self.summary.config(
-            text=f"Подтверждено: {len(confirmed)}     Ждут решения: {len(pending)}     "
+        self.status(
+            f"Подтверждено: {len(confirmed)}      Ждут решения: {len(pending)}      "
             f"Ближайшая игра: {nearest}"
         )
 
@@ -409,13 +419,13 @@ class CharactersTab(Tab):
         row.columnconfigure((0, 1, 2), weight=1, uniform="col")
         field(boxes[0], "Имя *")
         self.name = ttk.Entry(boxes[0])
-        self.name.pack(fill="x", ipady=2)
+        self.name.pack(fill="x")
         field(boxes[1], "Раса")
         self.race = ttk.Combobox(boxes[1], values=characters.RACES)
-        self.race.pack(fill="x", ipady=2)
+        self.race.pack(fill="x")
         field(boxes[2], "Класс")
         self.cls = ttk.Combobox(boxes[2], values=characters.CLASSES)
-        self.cls.pack(fill="x", ipady=2)
+        self.cls.pack(fill="x")
         field(form, "Уровень *")
         self.level = ttk.Spinbox(form, from_=1, to=20, width=8)
         self.level.pack(anchor="w")

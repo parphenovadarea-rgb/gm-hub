@@ -27,15 +27,15 @@ class LoginFrame(ttk.Frame):
 
         field(self, "Логин")
         self.login = ttk.Entry(self)
-        self.login.pack(fill="x", ipady=3)
+        self.login.pack(fill="x")
         field(self, "Пароль")
         self.password = ttk.Entry(self, show="●")
-        self.password.pack(fill="x", ipady=3)
+        self.password.pack(fill="x")
 
         self.button = ttk.Button(
             self, text="Войти", style="Accent.TButton", command=self.on_login
         )
-        self.button.pack(fill="x", pady=(16, 10), ipady=4)
+        self.button.pack(fill="x", pady=(16, 10))
         self.error = Banner(self, fill="x", pady=(12, 0), before=self.button)
 
         bottom = ttk.Frame(self)
@@ -78,7 +78,7 @@ class RegisterFrame(ttk.Frame):
         for name in ("ФИО", "Логин"):
             field(self, name)
             self.entries[name] = ttk.Entry(self)
-            self.entries[name].pack(fill="x", ipady=3)
+            self.entries[name].pack(fill="x")
 
         row = ttk.Frame(self)
         row.pack(fill="x")
@@ -89,11 +89,11 @@ class RegisterFrame(ttk.Frame):
             )
             field(box, name)
             self.entries[name] = ttk.Entry(box, show="●")
-            self.entries[name].pack(fill="x", ipady=3)
+            self.entries[name].pack(fill="x")
         row.columnconfigure((0, 1), weight=1, uniform="half")
 
         field(self, "Роль")
-        self.role = ChoiceCards(self, columns=2)
+        self.role = ChoiceCards(self, columns=2, wrap=150)
         self.role.set_options(ROLES)
         self.role.pack(fill="x")
 
@@ -103,7 +103,7 @@ class RegisterFrame(ttk.Frame):
             style="Accent.TButton",
             command=self.on_register,
         )
-        self.button.pack(fill="x", pady=(8, 10), ipady=4)
+        self.button.pack(fill="x", pady=(8, 10))
         self.error = Banner(self, fill="x", pady=(4, 4), before=self.button)
 
         bottom = ttk.Frame(self)
