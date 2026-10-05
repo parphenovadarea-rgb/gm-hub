@@ -1,13 +1,16 @@
 """Создаёт демонстрационную БД с данными из макетов Figma: python seed.py.
 
-Внимание: старый файл gm_hub.db удаляется.
+Внимание: старый файл gm_hub.db удаляется. Чтобы не трогать рабочую БД,
+передайте другой файл: py seed.py demo.db
 
 Даты сессий считаются от текущего дня так же, как в макетах они считались
 от 29.09.2026: «Туман над Серым Бродом» через 2 дня, «Шахта Эхо, ч. 3» через 5
 и т. д. Поэтому на защите сессии всегда предстоящие.
 """
 
+import sys
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from gm_hub.config import DB_PATH, DATETIME_FORMAT, now_str
 from gm_hub.db.database import connect, init_db
@@ -18,6 +21,7 @@ PASSWORD = "1234"  # пароль у всех демо-пользователе�
 # (ФИО, логин, роль)
 USERS = [
     ("Агыг", "агыг", "GM"),
+    ("Ильин Максим", "ilin", "GM"),
     ("Денисов Глеб", "gleb", "PLAYER"),
     ("Жукова Полина", "polina", "PLAYER"),
     ("Соколов Артём", "artem", "PLAYER"),
@@ -127,10 +131,15 @@ def in_days(days: int) -> str:
     return (datetime.now() + timedelta(days=days)).strftime("%d.%m.%Y")
 
 
-def main() -> None:
-    """Заполняет БД пользователями, персонажами, сессиями, заявками и заметками."""
-    DB_PATH.unlink(missing_ok=True)
-    conn = connect()
+def main(path=DB_PATH) -> None:
+    """Заполняет БД пользователями, персонажами, сессиями, заявками и заметками.
+
+    Args:
+        path: Файл БД. По умолчанию — рабочая БД программы (она стирается!).
+    """
+    path = Path(path)
+    path.unlink(missing_ok=True)
+    conn = connect(path)
     init_db(conn)
 
     users = {}
@@ -138,6 +147,16 @@ def main() -> None:
         auth.register(conn, full_name, login, PASSWORD, PASSWORD, role)
         users[login] = auth.login_user(conn, login, PASSWORD)
     gm = users["агыг"]
+    # Второй Мастер со своей сессией — показать, что у каждого Мастера своё окно.
+    games.save_game(
+        conn,
+        users["ilin"],
+        "Подземелья Чёрной Башни",
+        "Классическое подземелье, 1–2 уровень",
+        in_days(8),
+        "17:00",
+        5,
+    )
 
     chars = {}
     for login, name, race, cls, level, story in CHARACTERS:
@@ -161,6 +180,25 @@ def main() -> None:
         elif status == "REJECTED":
             signups.reject_signup(conn, gm, signup_id)
 
+    # Все заявки созданы «сейчас»; чтобы даты подачи и решения различались,
+    # как в макетах, сдвигаем их на несколько дней назад.
+    ids = [row[0] for row in conn.execute("SELECT id FROM Game_Signups ORDER BY id")]
+    with conn:
+        for index, signup_id in enumerate(ids):
+            created = datetime.now() - timedelta(
+                hours=100 - index * 6, minutes=index * 7
+            )
+            decided = created + timedelta(hours=3, minutes=11)
+            conn.execute(
+                "UPDATE Game_Signups SET created_at = ?, decided_at = CASE "
+                "WHEN decided_at IS NULL THEN NULL ELSE ? END WHERE id = ?",
+                (
+                    created.strftime(DATETIME_FORMAT),
+                    decided.strftime(DATETIME_FORMAT),
+                    signup_id,
+                ),
+            )
+
     # Прошедшую сессию через форму создать нельзя (дата в прошлом),
     # поэтому для демонстрации она добавляется напрямую.
     past = (datetime.now() - timedelta(days=9)).replace(hour=18, minute=0)
@@ -183,10 +221,11 @@ def main() -> None:
         notes.save_world_note(conn, gm, category, title, text)
 
     conn.close()
-    print(f"Демо-БД создана {now_str()}: {DB_PATH}")
-    print(f"Мастер: агыг / {PASSWORD}")
+    print(f"Демо-БД создана {now_str()}: {path}")
+    print(f"Мастера: агыг, ilin / {PASSWORD}")
     print(f"Игроки: gleb, polina, artem, elena, nikita, vera / {PASSWORD}")
 
 
 if __name__ == "__main__":
-    main()
+    # py seed.py demo.db — создать демо-БД в другом файле, не трогая рабочую.
+    main(sys.argv[1] if len(sys.argv) > 1 else DB_PATH)
