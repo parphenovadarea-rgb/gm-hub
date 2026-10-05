@@ -128,7 +128,10 @@ def setup_style(root: tk.Tk) -> None:
         image("tab_off"),
         ("selected", image("tab_on")),
         ("active", image("tab_on")),
-        border=8,
+        border=12,
+        padding=6,
+        width=24,
+        height=24,
         sticky="nsew",
     )
     style.layout(
@@ -166,7 +169,10 @@ def setup_style(root: tk.Tk) -> None:
         "image",
         image("field"),
         ("focus", image("field_focus")),
-        border=6,
+        border=12,
+        padding=6,
+        width=24,
+        height=24,
         sticky="nsew",
     )
     style.layout(
@@ -302,7 +308,7 @@ def image(name: str) -> tk.PhotoImage:
 def rounded_button(style, style_name, normal, hover, disabled=None) -> None:
     """Делает кнопку стиля style_name со скруглёнными углами.
 
-    Фон кнопки — картинка со скруглённым прямоугольником. Параметр border=6
+    Фон кнопки — картинка со скруглённым прямоугольником. Параметр border=12
     говорит Tk не растягивать углы картинки, а тянуть только середину.
 
     Args:
@@ -317,7 +323,15 @@ def rounded_button(style, style_name, normal, hover, disabled=None) -> None:
         states.insert(0, ("disabled", image(disabled)))
     element = style_name + ".rounded"
     style.element_create(
-        element, "image", image(normal), *states, border=6, sticky="nsew"
+        element,
+        "image",
+        image(normal),
+        *states,
+        border=12,
+        padding=6,
+        width=24,
+        height=24,
+        sticky="nsew",
     )
     style.layout(
         style_name,
@@ -353,7 +367,16 @@ def rounded_frame(style, style_name: str, picture: str) -> None:
         picture: Имя картинки из папки img.
     """
     element = style_name + ".rounded"
-    style.element_create(element, "image", image(picture), border=8, sticky="nsew")
+    style.element_create(
+        element,
+        "image",
+        image(picture),
+        border=12,
+        padding=6,
+        width=24,
+        height=24,
+        sticky="nsew",
+    )
     style.layout(style_name, [(element, {"sticky": "nsew"})])
 
 
