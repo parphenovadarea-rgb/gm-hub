@@ -4,7 +4,7 @@ from datetime import datetime
 
 from gm_hub.config import DATETIME_FORMAT, SHOW_FORMAT, now_str
 from gm_hub.logic.auth import check_gm
-from gm_hub.logic.errors import ValidationError, require
+from gm_hub.logic.errors import AccessError, ValidationError, require
 
 STATUS_NAMES = {"PLANNED": "Запланирована", "CLOSED": "Прошла", "CANCELLED": "Отменена"}
 
@@ -98,10 +98,12 @@ def save_game(
         id сессии.
 
     Raises:
-        AccessError: Если пользователь не Мастер.
+        AccessError: Если пользователь не Мастер или сессия чужая.
         ValidationError: Если данные неверные.
     """
     check_gm(user)
+    if game_id is not None:
+        check_owner(conn, user, game_id)
     title = require(title, "Название")
     scheduled_at = parse_datetime(date_text, time_text)
     max_players = check_max_players(max_players)
@@ -134,8 +136,11 @@ def cancel_game(conn, user, game_id) -> None:
         conn: Подключение к БД.
         user: Текущий пользователь (Мастер).
         game_id: id сессии.
+
+    Raises:
+        AccessError: Если сессия чужая.
     """
-    check_gm(user)
+    check_owner(conn, user, game_id)
     with conn:
         conn.execute("UPDATE Games SET status = 'CANCELLED' WHERE id = ?", (game_id,))
 
@@ -152,12 +157,11 @@ def delete_game(conn, user, game_id) -> None:
         game_id: id сессии.
 
     Raises:
-        AccessError: Если пользователь не Мастер.
+        AccessError: Если сессия чужая.
         ValidationError: Если сессия не отменена.
     """
-    check_gm(user)
-    game = get_game(conn, game_id)
-    if game is None or game["status"] != "CANCELLED":
+    game = check_owner(conn, user, game_id)
+    if game["status"] != "CANCELLED":
         raise ValidationError(
             "Сессия", "Удалить можно только отменённую сессию. Сначала отмените её."
         )
@@ -165,6 +169,33 @@ def delete_game(conn, user, game_id) -> None:
         conn.execute("DELETE FROM Game_Signups WHERE game_id = ?", (game_id,))
         conn.execute("DELETE FROM Game_Notes WHERE game_id = ?", (game_id,))
         conn.execute("DELETE FROM Games WHERE id = ?", (game_id,))
+
+
+def check_owner(conn, user, game_id):
+    """Проверяет, что сессия принадлежит текущему Мастеру.
+
+    У каждого Мастера свои сессии: чужие нельзя изменить, отменить,
+    обработать по ним заявки или прочитать заметки.
+
+    Args:
+        conn: Подключение к БД.
+        user: Текущий пользователь.
+        game_id: id сессии.
+
+    Returns:
+        Строка сессии.
+
+    Raises:
+        AccessError: Если пользователь не Мастер или сессия чужая.
+        ValidationError: Если сессия не выбрана или не найдена.
+    """
+    check_gm(user)
+    game = get_game(conn, game_id) if game_id is not None else None
+    if game is None:
+        raise ValidationError("Сессия", "Выберите сессию.")
+    if game["gm_id"] != user["id"]:
+        raise AccessError("Это сессия другого Мастера.")
+    return game
 
 
 def close_past_games(conn) -> None:
@@ -194,19 +225,24 @@ def get_game(conn, game_id):
     return conn.execute(GAMES_QUERY + " WHERE g.id = ?", (game_id,)).fetchone()
 
 
-def list_games(conn, status: str = "PLANNED"):
-    """Возвращает сессии с нужным статусом, отсортированные по дате.
+def list_games(conn, status: str = "PLANNED", gm_id=None):
+    """Возвращает сессии одного Мастера с нужным статусом, по дате.
 
-    Для статуса PLANNED это и расписание Мастера, и витрина Игрока.
+    Для статуса PLANNED это и расписание Мастера, и витрина Игрока
+    (Игрок видит сессии выбранного Мастера).
 
     Args:
         conn: Подключение к БД.
         status: PLANNED, CLOSED или CANCELLED.
+        gm_id: id Мастера. None — сессии всех Мастеров.
 
     Returns:
         Список строк с полями сессии, confirmed и pending.
     """
     close_past_games(conn)
-    return conn.execute(
-        GAMES_QUERY + " WHERE g.status = ? ORDER BY g.scheduled_at", (status,)
-    ).fetchall()
+    sql = GAMES_QUERY + " WHERE g.status = ?"
+    params = [status]
+    if gm_id is not None:
+        sql += " AND g.gm_id = ?"
+        params.append(gm_id)
+    return conn.execute(sql + " ORDER BY g.scheduled_at", params).fetchall()

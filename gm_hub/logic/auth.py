@@ -186,6 +186,8 @@ def delete_account(conn, user, password) -> None:
             "Сначала удалите их.",
         )
     with conn:
+        # своя база мира удаляется вместе с аккаунтом Мастера
+        conn.execute("DELETE FROM World_Notes WHERE gm_id = ?", (user["id"],))
         conn.execute("DELETE FROM Users WHERE id = ?", (user["id"],))
 
 
@@ -205,6 +207,24 @@ def check_current_password(conn, user, password) -> None:
     ).fetchone()[0]
     if not check_password(password or "", stored):
         raise ValidationError("Текущий пароль", "Текущий пароль введён неверно.")
+
+
+def list_masters(conn, search: str = ""):
+    """Возвращает Мастеров, у которых Игрок может выбрать игры.
+
+    Args:
+        conn: Подключение к БД.
+        search: Часть имени для поиска (без учёта регистра).
+
+    Returns:
+        Список строк (id, full_name), отсортированный по имени.
+    """
+    rows = conn.execute(
+        "SELECT id, full_name FROM Users WHERE role = 'GM' ORDER BY full_name"
+    ).fetchall()
+    # LIKE в SQLite не понимает регистр русских букв, поэтому ищем в Python.
+    search = search.strip().lower()
+    return [row for row in rows if search in row["full_name"].lower()]
 
 
 def check_gm(user) -> None:

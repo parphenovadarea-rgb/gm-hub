@@ -3,7 +3,7 @@
 from gm_hub.config import now_str
 from gm_hub.logic.auth import check_gm
 from gm_hub.logic.errors import AccessError, ValidationError
-from gm_hub.logic.games import free_seats, get_game
+from gm_hub.logic.games import check_owner, free_seats, get_game
 
 STATUS_NAMES = {
     "PENDING": "На рассмотрении",
@@ -15,7 +15,8 @@ STATUS_NAMES = {
 SIGNUPS_QUERY = """
     SELECT s.*, g.title AS game_title, g.scheduled_at,
         c.name AS character_name, c.class AS character_class,
-        c.level AS character_level, u.full_name AS player_name
+        c.level AS character_level, u.full_name AS player_name,
+        (SELECT full_name FROM Users WHERE id = g.gm_id) AS gm_name
     FROM Game_Signups s
     JOIN Games g ON g.id = s.game_id
     JOIN Characters c ON c.id = s.character_id
@@ -136,7 +137,7 @@ def confirm_signup(conn, user, signup_id) -> None:
         signup_id: id заявки.
 
     Raises:
-        AccessError: Если пользователь не Мастер.
+        AccessError: Если пользователь не Мастер или сессия чужая.
         ValidationError: Если мест нет или заявка уже рассмотрена.
     """
     check_gm(user)
@@ -146,7 +147,7 @@ def confirm_signup(conn, user, signup_id) -> None:
         ).fetchone()
         if signup is None or signup["status"] != "PENDING":
             raise ValidationError("Заявка", "Подтвердить можно только новую заявку.")
-        game = get_game(conn, signup["game_id"])
+        game = check_owner(conn, user, signup["game_id"])
         if free_seats(game["max_players"], game["confirmed"]) <= 0:
             raise ValidationError(
                 "Заявка",
@@ -169,13 +170,15 @@ def reject_signup(conn, user, signup_id) -> None:
         signup_id: id заявки.
 
     Raises:
-        AccessError: Если пользователь не Мастер.
+        AccessError: Если пользователь не Мастер или сессия чужая.
         ValidationError: Если заявка уже отклонена.
     """
     check_gm(user)
     signup = conn.execute(
-        "SELECT status FROM Game_Signups WHERE id = ?", (signup_id,)
+        "SELECT status, game_id FROM Game_Signups WHERE id = ?", (signup_id,)
     ).fetchone()
+    if signup is not None:
+        check_owner(conn, user, signup["game_id"])
     if signup is None or signup["status"] == "REJECTED":
         raise ValidationError("Заявка", "Эта заявка уже отклонена.")
     with conn:
