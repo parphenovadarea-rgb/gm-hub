@@ -70,9 +70,9 @@ class App(tk.Tk):
         """
         self.user = user
         if user["role"] == "GM":
-            self.show(GMFrame, "Мастер", "1320x780")
+            self.show(GMFrame, "Мастер", "1400x800")
         else:
-            self.show(PlayerFrame, "Игрок", "1320x780")
+            self.show(PlayerFrame, "Игрок", "1400x800")
 
     def show_profile(self) -> None:
         """Открывает окно профиля текущего пользователя."""
