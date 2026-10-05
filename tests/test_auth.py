@@ -54,6 +54,25 @@ class AuthTest(unittest.TestCase):
         with self.assertRaises(ValidationError):
             auth.login_user(self.conn, "ivan", "0000")
 
+    def test_update_profile(self):
+        """ФИО и пароль меняются только при верном текущем пароле."""
+        auth.register(self.conn, "Иванов И. И.", "ivan", "1234", "1234", "GM")
+        user = auth.login_user(self.conn, "ivan", "1234")
+        with self.assertRaises(ValidationError):
+            auth.update_profile(self.conn, user, "Иванов И. П.", "0000")
+        user = auth.update_profile(
+            self.conn, user, "Иванов И. П.", "1234", "5678", "5678"
+        )
+        self.assertEqual(user["full_name"], "Иванов И. П.")
+        auth.login_user(self.conn, "ivan", "5678")
+
+    def test_delete_account(self):
+        """Аккаунт без персонажей и сессий удаляется."""
+        auth.register(self.conn, "Иванов И. И.", "ivan", "1234", "1234", "PLAYER")
+        user = auth.login_user(self.conn, "ivan", "1234")
+        auth.delete_account(self.conn, user, "1234")
+        self.assertFalse(auth.has_users(self.conn))
+
 
 if __name__ == "__main__":
     unittest.main()

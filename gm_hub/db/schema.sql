@@ -53,6 +53,8 @@ CREATE TABLE IF NOT EXISTS Game_Notes (
 
 CREATE TABLE IF NOT EXISTS World_Notes (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    -- у каждого Мастера своя база мира
+    gm_id      INTEGER NOT NULL REFERENCES Users (id),
     category   TEXT    NOT NULL CHECK (category IN ('LORE', 'NPC', 'LOCATION')),
     title      TEXT    NOT NULL,
     content    TEXT,

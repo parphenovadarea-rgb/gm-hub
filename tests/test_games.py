@@ -50,6 +50,15 @@ class GamesTest(unittest.TestCase):
         self.assertEqual(games.list_games(self.conn), [])
         self.assertEqual(len(games.list_games(self.conn, "CANCELLED")), 1)
 
+    def test_delete_only_cancelled_game(self):
+        """Удалить можно только отменённую сессию."""
+        game_id = games.save_game(self.conn, self.gm, "Игра", "", *future(), 4)
+        with self.assertRaises(ValidationError):
+            games.delete_game(self.conn, self.gm, game_id)
+        games.cancel_game(self.conn, self.gm, game_id)
+        games.delete_game(self.conn, self.gm, game_id)
+        self.assertIsNone(games.get_game(self.conn, game_id))
+
 
 if __name__ == "__main__":
     unittest.main()
