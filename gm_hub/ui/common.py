@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from tkinter import ttk
 
-from gm_hub.config import DATETIME_FORMAT, SHOW_FORMAT
+from gm_hub.config import DATETIME_FORMAT
 
 # Палитра из макетов Figma.
 ACCENT = "#285331"  # тёмно-зелёные кнопки
@@ -19,6 +19,7 @@ ACCENT_SOFT = "#c3cfc6"  # выбранная строка, выбранный �
 GREEN_SOFT = "#e3f3e6"  # успех, выбранная карточка
 BG = "#ffffff"
 BG_SOFT = "#f7f8fa"
+PAGE = BG_SOFT  # фон страницы под карточками
 HEAD = "#eef0f4"  # заголовки таблиц
 LINE = "#d6d9e2"
 INK = "#1b1d26"
@@ -27,14 +28,6 @@ RED = "#a1362c"
 RED_SOFT = "#fbe7e4"
 YELLOW = "#8a5a00"
 YELLOW_SOFT = "#fff1d1"
-
-# Подсветка строк таблиц (п. 4.1.6 ТЗ).
-ROW_COLORS = {
-    "soon": "#f1f6f2",  # сессия скоро, запись истекает
-    "PENDING": YELLOW_SOFT,  # новая заявка
-    "CONFIRMED": "#f1f8f2",
-    "REJECTED": "#fdf3f2",
-}
 
 FONT = ("Segoe UI", 10)
 FONT_BOLD = ("Segoe UI", 10, "bold")
@@ -82,6 +75,24 @@ def setup_style(root: tk.Tk) -> None:
     )
     style.map("Accent.TButton", foreground=[("disabled", "#8fa596")])
     style.configure("Danger.TButton", foreground=RED, padding=(14, 6))
+    # Компактные кнопки внутри строк таблицы («Подтвердить», «Отклонить»).
+    rounded_button(
+        style,
+        "Small.Accent.TButton",
+        "accent",
+        hover="accent_hover",
+        disabled="accent_disabled",
+    )
+    rounded_button(style, "Small.Danger.TButton", "button", hover="danger_hover")
+    rounded_button(style, "Small.TButton", "button", hover="button_hover")
+    style.configure("Small.TButton", font=FONT_SMALL, padding=(10, 3))
+    style.configure(
+        "Small.Accent.TButton", foreground="white", font=FONT_SMALL, padding=(10, 3)
+    )
+    style.map("Small.Accent.TButton", foreground=[("disabled", "#8fa596")])
+    style.configure(
+        "Small.Danger.TButton", foreground=RED, font=FONT_SMALL, padding=(10, 3)
+    )
 
     # Вкладки-закладки в шапке и сегментные фильтры — это Radiobutton.
     style.configure(
@@ -137,35 +148,38 @@ def setup_style(root: tk.Tk) -> None:
         ],
     )
     style.configure("TEntry", padding=(8, 2))
-    style.configure("TCombobox", fieldbackground=BG, background=BG, padding=4)
+    flat_box = {"bordercolor": LINE, "lightcolor": BG, "darkcolor": BG}
+    style.configure(
+        "TCombobox",
+        fieldbackground=BG,
+        background=BG,
+        arrowcolor=MUTED,
+        padding=4,
+        **flat_box,
+    )
     style.map("TCombobox", fieldbackground=[("readonly", BG)])
-    style.configure("TSpinbox", fieldbackground=BG, background=BG, padding=4)
+    style.configure(
+        "TSpinbox",
+        fieldbackground=BG,
+        background=BG,
+        arrowcolor=MUTED,
+        padding=4,
+        **flat_box,
+    )
     style.configure("TCheckbutton", indicatorcolor=BG)
     style.map("TCheckbutton", indicatorcolor=[("selected", ACCENT)])
 
-    style.configure(
-        "Treeview",
-        background=BG,
-        fieldbackground=BG,
-        rowheight=30,
-        bordercolor=LINE,
-        lightcolor=BG,
-        darkcolor=BG,
-    )
-    style.configure(
-        "Treeview.Heading",
-        background=HEAD,
-        font=FONT_BOLD,
-        bordercolor=LINE,
-        lightcolor=HEAD,
-        darkcolor=HEAD,
-        padding=(6, 6),
-    )
-    style.map("Treeview.Heading", background=[("active", HEAD)])
-    style.map("Treeview", background=[("selected", ACCENT_SOFT)])
-    style.map("Treeview", foreground=[("selected", INK)])
-    style.configure("Tall.Treeview", rowheight=48)
     style.configure("Header.TFrame", background=BG)
+    style.configure("Page.TFrame", background=PAGE)
+    style.configure("Page.TLabel", background=PAGE, foreground=MUTED)
+    style.configure("PageInk.TLabel", background=PAGE)
+    style.configure("PageBold.TLabel", background=PAGE, font=FONT_BOLD)
+    style.configure("Page.TCheckbutton", background=PAGE)
+    style.map("Page.TCheckbutton", background=[("active", PAGE)])
+    style.configure("Title.TLabel", background=PAGE)
+    style.configure(
+        "PageGreen.TLabel", background=PAGE, foreground=ACCENT, font=FONT_BOLD
+    )
     style.configure("Line.TFrame", background=LINE)
 
 
@@ -234,7 +248,7 @@ def _no_3d() -> dict:
     return {"bordercolor": LINE, "lightcolor": BG, "darkcolor": BG}
 
 
-def link(parent, text: str, command, color: str = RED) -> tk.Label:
+def link(parent, text: str, command, color: str = RED, bg: str = BG) -> tk.Label:
     """Создаёт текстовую ссылку («Выйти», «Зарегистрироваться»).
 
     Args:
@@ -242,22 +256,24 @@ def link(parent, text: str, command, color: str = RED) -> tk.Label:
         text: Текст ссылки.
         command: Функция без аргументов, вызывается по щелчку.
         color: Цвет текста.
+        bg: Цвет фона под ссылкой.
 
     Returns:
         Метка, которая ведёт себя как ссылка.
     """
-    label = tk.Label(parent, text=text, fg=color, bg=BG, cursor="hand2", font=FONT)
+    label = tk.Label(parent, text=text, fg=color, bg=bg, cursor="hand2", font=FONT)
     label.bind("<Button-1>", lambda event: command())
     return label
 
 
-def card(parent, title: str | None = None, note: str | None = None) -> ttk.Frame:
+def card(parent, title=None, note=None, action=None) -> ttk.Frame:
     """Создаёт белую карточку с тонкой рамкой, как панели в макетах.
 
     Args:
         parent: Родительский виджет.
         title: Заголовок карточки.
         note: Серая подпись справа от заголовка.
+        action: Кнопка справа в заголовке — пара (текст, функция).
 
     Returns:
         Внутренняя рамка карточки, в неё кладутся поля.
@@ -272,6 +288,10 @@ def card(parent, title: str | None = None, note: str | None = None) -> ttk.Frame
         head_label.pack(side="left")
         if note:
             ttk.Label(head, text=note, style="Small.TLabel").pack(side="right")
+        if action:
+            ttk.Button(
+                head, text=action[0], style="Small.TButton", command=action[1]
+            ).pack(side="right")
         ttk.Frame(outer, style="Line.TFrame", height=1).pack(fill="x")
     inner = ttk.Frame(outer, padding=14)
     inner.pack(fill="both", expand=True)
@@ -458,7 +478,7 @@ class MainFrame(ttk.Frame):
         bar.pack(side="left", anchor="s", padx=(60, 0), pady=(16, 0))
         ttk.Frame(self, style="Line.TFrame", height=1).pack(fill="x")
 
-        body = ttk.Frame(self)
+        body = ttk.Frame(self, style="Page.TFrame")
         body.pack(fill="both", expand=True)
         body.rowconfigure(0, weight=1)
         body.columnconfigure(0, weight=1)
@@ -505,110 +525,19 @@ class MainFrame(ttk.Frame):
         self.tab_buttons[index].config(text=title)
 
 
-def _sort_key(text: str):
-    """Ключ сортировки: даты по дате, числа по числу, остальное по алфавиту."""
-    text = text.lstrip("■□ ")
-    try:
-        return (0, datetime.strptime(text, SHOW_FORMAT).strftime(DATETIME_FORMAT))
-    except ValueError:
-        pass
-    try:
-        return (1, float(text.split()[0]))  # «3 из 4» сортируется по 3
-    except (ValueError, IndexError):
-        return (2, text.lower())
-
-
-def sort_table(tree: ttk.Treeview, column: str, reverse: bool = False) -> None:
-    """Сортирует строки таблицы по столбцу (п. 4.1.6 ТЗ).
-
-    Повторный щелчок по заголовку меняет порядок на обратный.
+def short_name(full_name: str) -> str:
+    """Сокращает ФИО для таблицы: «Жукова Полина» -> «Жукова П.».
 
     Args:
-        tree: Таблица.
-        column: Идентификатор столбца.
-        reverse: Сортировать по убыванию.
-    """
-    items = [(tree.set(iid, column), iid) for iid in tree.get_children()]
-    items.sort(key=lambda pair: _sort_key(pair[0]), reverse=reverse)
-    for index, (_, iid) in enumerate(items):
-        tree.move(iid, "", index)
-    tree.heading(column, command=lambda: sort_table(tree, column, not reverse))
-
-
-def make_table(parent, columns, tall: bool = False) -> ttk.Treeview:
-    """Создаёт таблицу с прокруткой и сортировкой по столбцам.
-
-    Args:
-        parent: Родительский виджет.
-        columns: Список пар (заголовок, ширина).
-        tall: Высокие строки — для ячеек в две строки (название и описание).
+        full_name: Полное имя.
 
     Returns:
-        Таблица Treeview. Рамку с ней нужно разместить через tree.master.
+        Фамилия и инициал или имя целиком, если оно из одного слова.
     """
-    frame = tk.Frame(parent, bg=BG, highlightthickness=1, highlightbackground=LINE)
-    ids = [f"c{i}" for i in range(len(columns))]
-    tree = ttk.Treeview(
-        frame,
-        columns=ids,
-        show="headings",
-        selectmode="browse",
-        style="Tall.Treeview" if tall else "Treeview",
-    )
-    for col_id, (title, width) in zip(ids, columns):
-        tree.heading(
-            col_id,
-            text=title,
-            anchor="w",
-            command=lambda c=col_id: sort_table(tree, c),
-        )
-        tree.column(col_id, width=width, anchor="w")
-    for tag, color in ROW_COLORS.items():
-        tree.tag_configure(tag, background=color)
-    scroll = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
-    tree.configure(yscrollcommand=scroll.set)
-    tree.pack(side="left", fill="both", expand=True)
-    scroll.pack(side="right", fill="y")
-    return tree
-
-
-def clear_table(tree: ttk.Treeview) -> None:
-    """Удаляет все строки таблицы.
-
-    Args:
-        tree: Таблица.
-    """
-    tree.delete(*tree.get_children())
-
-
-def selected_id(tree: ttk.Treeview) -> int | None:
-    """Возвращает id выбранной строки (id записи в БД).
-
-    Args:
-        tree: Таблица.
-
-    Returns:
-        id записи или None, если ничего не выбрано.
-    """
-    selection = tree.selection()
-    return int(selection[0]) if selection else None
-
-
-def seats_bar(free: int, max_players: int) -> str:
-    """Рисует занятость мест квадратиками, как в макете: «■■□□ 2 из 4».
-
-    Args:
-        free: Свободных мест.
-        max_players: Всего мест.
-
-    Returns:
-        Текст для ячейки таблицы.
-    """
-    text = f"{free} из {max_players}" if free > 0 else "мест нет"
-    if max_players > 8:
-        return text
-    taken = max_players - free
-    return "■" * taken + "□" * free + "  " + text
+    parts = full_name.split()
+    if len(parts) < 2:
+        return full_name
+    return f"{parts[0]} {parts[1][0]}."
 
 
 def is_soon(db_value: str, days: int = 3) -> bool:
@@ -674,16 +603,18 @@ def make_text(parent, height: int = 5) -> tk.Text:
     )
 
 
-def field(parent, label: str) -> ttk.Label:
+def field(parent, label: str, page: bool = False) -> ttk.Label:
     """Создаёт подпись над полем ввода, как в макетах.
 
     Args:
         parent: Родительский виджет.
         label: Текст подписи.
+        page: Поле лежит на сером фоне страницы, а не в белой карточке.
 
     Returns:
         Метка (уже размещена через pack).
     """
-    widget = ttk.Label(parent, text=label, style="Muted.TLabel")
+    style = "Page.TLabel" if page else "Muted.TLabel"
+    widget = ttk.Label(parent, text=label, style=style)
     widget.pack(anchor="w", pady=(8, 2))
     return widget
