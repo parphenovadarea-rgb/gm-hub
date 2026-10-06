@@ -13,7 +13,7 @@ STATUS_NAMES = {
 
 # Общая часть запроса: заявка + сессия + персонаж + игрок.
 SIGNUPS_QUERY = """
-    SELECT s.*, g.title AS game_title, g.scheduled_at,
+    SELECT s.*, g.title AS game_title, g.scheduled_at, g.status AS game_status,
         c.name AS character_name, c.class AS character_class,
         c.level AS character_level, u.full_name AS player_name,
         (SELECT full_name FROM Users WHERE id = g.gm_id) AS gm_name
@@ -75,7 +75,10 @@ def create_signup(conn, user, game_id, character_id, comment="") -> int:
 
 
 def withdraw_signup(conn, user, signup_id) -> None:
-    """Отзывает (удаляет) свою заявку, пока она на рассмотрении.
+    """Отзывает (удаляет) свою заявку — на рассмотрении или подтверждённую.
+
+    Подтверждённую заявку тоже можно отозвать, если Игрок не сможет прийти:
+    место освобождается для следующей заявки.
 
     Args:
         conn: Подключение к БД.
@@ -83,15 +86,18 @@ def withdraw_signup(conn, user, signup_id) -> None:
         signup_id: id заявки.
 
     Raises:
-        ValidationError: Если заявка уже рассмотрена или чужая.
+        ValidationError: Если заявка отклонена, сессия уже не запланирована
+            или заявка чужая.
     """
     signup = conn.execute(
         SIGNUPS_QUERY + " WHERE s.id = ? AND c.user_id = ?", (signup_id, user["id"])
     ).fetchone()
     if signup is None:
         raise ValidationError("Заявка", "Выберите свою заявку в таблице.")
-    if signup["status"] != "PENDING":
-        raise ValidationError("Заявка", "Отозвать можно только заявку на рассмотрении.")
+    if signup["status"] == "REJECTED" or signup["game_status"] != "PLANNED":
+        raise ValidationError(
+            "Заявка", "Отозвать можно только активную заявку на предстоящую сессию."
+        )
     with conn:
         conn.execute("DELETE FROM Game_Signups WHERE id = ?", (signup_id,))
 
@@ -161,13 +167,14 @@ def confirm_signup(conn, user, signup_id) -> None:
         )
 
 
-def reject_signup(conn, user, signup_id) -> None:
-    """Отклоняет заявку.
+def reject_signup(conn, user, signup_id, reason: str = "") -> None:
+    """Отклоняет заявку и запоминает причину отказа.
 
     Args:
         conn: Подключение к БД.
         user: Текущий пользователь (Мастер).
         signup_id: id заявки.
+        reason: Причина отказа (необязательно), её увидит Игрок.
 
     Raises:
         AccessError: Если пользователь не Мастер или сессия чужая.
@@ -183,6 +190,7 @@ def reject_signup(conn, user, signup_id) -> None:
         raise ValidationError("Заявка", "Эта заявка уже отклонена.")
     with conn:
         conn.execute(
-            "UPDATE Game_Signups SET status = 'REJECTED', decided_at = ? WHERE id = ?",
-            (now_str(), signup_id),
+            "UPDATE Game_Signups SET status = 'REJECTED', decided_at = ?, reason = ? "
+            "WHERE id = ?",
+            (now_str(), reason.strip() or None, signup_id),
         )

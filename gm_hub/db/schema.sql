@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS Game_Signups (
     comment      TEXT,
     created_at   TEXT    NOT NULL,
     decided_at   TEXT,
+    reason       TEXT,  -- причина отказа (пишет Мастер или «Сессия отменена»)
     -- один персонаж не может дважды подать заявку на одну сессию (п. 4.1.4)
     UNIQUE (game_id, character_id)
 );

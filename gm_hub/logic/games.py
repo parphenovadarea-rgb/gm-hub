@@ -130,7 +130,7 @@ def save_game(
 
 
 def cancel_game(conn, user, game_id) -> None:
-    """Отменяет сессию.
+    """Отменяет сессию; её заявки на рассмотрении автоматически отклоняются.
 
     Args:
         conn: Подключение к БД.
@@ -143,6 +143,12 @@ def cancel_game(conn, user, game_id) -> None:
     check_owner(conn, user, game_id)
     with conn:
         conn.execute("UPDATE Games SET status = 'CANCELLED' WHERE id = ?", (game_id,))
+        # Новые заявки на отменённую сессию отклоняются, Игрок увидит причину.
+        conn.execute(
+            "UPDATE Game_Signups SET status = 'REJECTED', decided_at = ?, "
+            "reason = 'Сессия отменена' WHERE game_id = ? AND status = 'PENDING'",
+            (now_str(), game_id),
+        )
 
 
 def delete_game(conn, user, game_id) -> None:

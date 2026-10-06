@@ -86,6 +86,30 @@ class SignupsTest(unittest.TestCase):
         signups.withdraw_signup(self.conn, self.p1, signup_id)
         self.assertEqual(signups.list_for_player(self.conn, self.p1), [])
 
+    def test_reject_with_reason(self):
+        """Причина отказа сохраняется, Игрок её видит."""
+        signup_id = signups.create_signup(self.conn, self.p1, self.game, self.char1)
+        signups.reject_signup(self.conn, self.gm, signup_id, "Нет мест для новичков")
+        mine = signups.list_for_player(self.conn, self.p1)
+        self.assertEqual(mine[0]["reason"], "Нет мест для новичков")
+
+    def test_cancel_game_rejects_pending(self):
+        """При отмене сессии заявки на рассмотрении отклоняются."""
+        signup_id = signups.create_signup(self.conn, self.p1, self.game, self.char1)
+        games.cancel_game(self.conn, self.gm, self.game)
+        self.assertEqual(self.status(signup_id), "REJECTED")
+        mine = signups.list_for_player(self.conn, self.p1)
+        self.assertEqual(mine[0]["reason"], "Сессия отменена")
+
+    def test_withdraw_confirmed_frees_seat(self):
+        """Подтверждённую заявку можно отозвать — место освобождается."""
+        first = signups.create_signup(self.conn, self.p1, self.game, self.char1)
+        second = signups.create_signup(self.conn, self.p2, self.game, self.char2)
+        signups.confirm_signup(self.conn, self.gm, first)
+        signups.withdraw_signup(self.conn, self.p1, first)
+        signups.confirm_signup(self.conn, self.gm, second)
+        self.assertEqual(self.status(second), "CONFIRMED")
+
 
 if __name__ == "__main__":
     unittest.main()
