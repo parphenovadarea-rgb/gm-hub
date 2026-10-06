@@ -426,10 +426,6 @@ class CharactersTab(Tab):
         field(boxes[2], "Класс")
         self.cls = ttk.Combobox(boxes[2], values=characters.CLASSES)
         self.cls.pack(fill="x")
-        field(form, "Уровень *")
-        self.level = ttk.Spinbox(form, from_=1, to=20, width=8)
-        self.level.pack(anchor="w")
-        ttk.Label(form, text="от 1 до 20", style="Small.TLabel").pack(anchor="w")
         field(form, "Предыстория")
         self.backstory = make_text(form, height=7)
         self.backstory.pack(fill="both", expand=True)
@@ -476,7 +472,9 @@ class CharactersTab(Tab):
         self.name.delete(0, "end")
         self.race.set("")
         self.cls.set("")
-        self.level.set(1)
+        # Уровень в карточке не выбирается: у нового персонажа он 1 (в БД поле
+        # обязательное), у существующего сохраняется прежний.
+        self.level = 1
         set_text(self.backstory, "")
         self.error.hide()
         self.refresh()
@@ -496,7 +494,7 @@ class CharactersTab(Tab):
         self.name.insert(0, c["name"])
         self.race.set(c["race"] or "")
         self.cls.set(c["class"] or "")
-        self.level.set(c["level"])
+        self.level = c["level"]
         set_text(self.backstory, c["backstory"])
         self.error.hide()
 
@@ -509,7 +507,7 @@ class CharactersTab(Tab):
                 self.name.get(),
                 self.race.get(),
                 self.cls.get(),
-                self.level.get(),
+                self.level,
                 get_text(self.backstory),
                 self.character_id,
             )
