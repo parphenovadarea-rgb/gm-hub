@@ -19,7 +19,8 @@ ACCENT_SOFT = "#c3cfc6"  # выбранная строка, выбранный �
 GREEN_SOFT = "#e3f3e6"  # успех, выбранная карточка
 BG = "#ffffff"
 BG_SOFT = "#f7f8fa"
-PAGE = BG_SOFT  # фон страницы под карточками
+PAGE = "#d9eedd"  # фон страницы под карточками — мятный зелёный
+PAGE_INK = "#3d5a44"  # подписи прямо на зелёном фоне
 HEAD = "#eef0f4"  # заголовки таблиц
 LINE = "#d6d9e2"
 INK = "#1b1d26"
@@ -80,7 +81,7 @@ def setup_style(root: tk.Tk) -> None:
     style.configure("Small.TLabel", foreground=MUTED, font=FONT_SMALL)
     style.configure("Field.TLabel", foreground=MUTED, font=FONT_SMALL_BOLD)
     style.configure(
-        "PageField.TLabel", background=PAGE, foreground=MUTED, font=FONT_SMALL_BOLD
+        "PageField.TLabel", background=PAGE, foreground=PAGE_INK, font=FONT_SMALL_BOLD
     )
     style.configure("Caps.TLabel", foreground=MUTED, font=FONT_SMALL_BOLD)
     style.configure("Bold.TLabel", font=FONT_BOLD)
@@ -305,7 +306,7 @@ def setup_style(root: tk.Tk) -> None:
 
     style.configure("Header.TFrame", background=BG)
     style.configure("Page.TFrame", background=PAGE)
-    style.configure("Page.TLabel", background=PAGE, foreground=MUTED)
+    style.configure("Page.TLabel", background=PAGE, foreground=PAGE_INK)
     style.configure("PageInk.TLabel", background=PAGE)
     style.configure("PageBold.TLabel", background=PAGE, font=FONT_BOLD)
     style.configure("Page.TCheckbutton", background=PAGE)
@@ -898,7 +899,7 @@ def field(parent, label: str, page: bool = False) -> ttk.Label:
     Args:
         parent: Родительский виджет.
         label: Текст подписи.
-        page: Поле лежит на сером фоне страницы, а не в белой карточке.
+        page: Поле лежит на зелёном фоне страницы, а не в белой карточке.
 
     Returns:
         Метка (уже размещена через pack).
