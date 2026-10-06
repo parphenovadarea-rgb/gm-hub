@@ -13,6 +13,7 @@ from gm_hub.ui.common import px, setup_style
 from gm_hub.ui.gm_window import GMFrame
 from gm_hub.ui.player_window import PlayerFrame
 from gm_hub.ui.profile_window import ProfileWindow
+from gm_hub.ui.theme import THEME, save_theme
 
 
 def make_dpi_aware() -> None:
@@ -35,19 +36,23 @@ class App(tk.Tk):
         user: Вошедший пользователь или None.
     """
 
-    def __init__(self, conn):
+    def __init__(self, conn, user=None):
         """Открывает регистрацию при первом запуске, иначе окно входа.
 
         Args:
             conn: Подключение к БД.
+            user: Пользователь, если окно пересоздаётся после смены темы.
         """
         super().__init__()
         self.conn = conn
         self.user = None
         self.screen = None
+        self.restart = False  # True — main.py пересоздаст окно с новой темой
         setup_style(self)
+        if user is not None:
+            self.open_main(user)
         # Сценарий 1 п. 6.1 ТЗ: при первом запуске открывается регистрация.
-        if auth.has_users(conn):
+        elif auth.has_users(conn):
             self.show_login()
         else:
             self.show_register()
@@ -87,6 +92,16 @@ class App(tk.Tk):
             self.show(GMFrame, "Мастер", "1360x780")
         else:
             self.show(PlayerFrame, "Игрок", "1420x780")
+
+    def toggle_theme(self) -> None:
+        """Переключает светлую и тёмную тему.
+
+        Цвета задаются при создании виджетов, поэтому окно закрывается,
+        а main.py создаёт его заново уже с новой темой (вход не нужен).
+        """
+        save_theme("light" if THEME == "dark" else "dark")
+        self.restart = True
+        self.destroy()
 
     def show_profile(self) -> None:
         """Открывает окно профиля текущего пользователя."""
