@@ -117,11 +117,11 @@ class ScheduleTab(Tab):
         self.table = RowTable(
             self,
             [
-                ("Название", 300, True),
-                ("Дата и время", 140, False),
-                ("Места", 150, False),
-                ("Новых заявок", 110, False),
-                ("Статус", 130, False),
+                ("Название", 336, True),
+                ("Дата и время", 157, False),
+                ("Места", 168, False),
+                ("Новых заявок", 123, False),
+                ("Статус", 146, False),
             ],
             on_select=self.on_select,
         )
@@ -320,12 +320,12 @@ class SignupsTab(Tab):
         self.table = RowTable(
             self,
             [
-                ("Персонаж", 160, True),
-                ("Игрок", 95, False),
-                ("Комментарий", 120, True),
-                ("Подана", 85, False),
-                ("Статус", 120, False),
-                ("Действия", 200, False),
+                ("Персонаж", 179, True),
+                ("Игрок", 106, False),
+                ("Комментарий", 134, True),
+                ("Подана", 95, False),
+                ("Статус", 134, False),
+                ("Действия", 224, False),
             ],
             on_select=self.on_select,
         )
@@ -503,7 +503,7 @@ class GameNotesTab(Tab):
         super().__init__(parent, app)
         self.game_id = None
 
-        self.table = RowTable(self, [("Сессии", 250, True)], on_select=self.on_select)
+        self.table = RowTable(self, [("Сессии", 280, True)], on_select=self.on_select)
         self.table.pack(side="left", fill="y")
 
         right = card(self)
@@ -522,7 +522,7 @@ class GameNotesTab(Tab):
         ttk.Frame(right, style="Line.TFrame", height=1).pack(fill="x", pady=px(10))
         self.team = ttk.Frame(right)
         self.team.pack(fill="x", pady=px((0, 10)))
-        self.editor = make_text(right, height=14)
+        self.editor = make_text(right, height=14, headings=True)
         self.editor.pack(fill="both", expand=True)
         bottom = ttk.Frame(right)
         bottom.pack(fill="x", pady=px((10, 0)))
@@ -649,7 +649,7 @@ class WorldTab(Tab):
         body = ttk.Frame(self, style="Page.TFrame")
         body.pack(fill="both", expand=True, pady=px((12, 0)))
         self.table = RowTable(
-            body, [("Записи", 280, True)], header=False, on_select=self.on_select
+            body, [("Записи", 314, True)], header=False, on_select=self.on_select
         )
         self.table.pack(side="left", fill="y")
 
@@ -668,7 +668,7 @@ class WorldTab(Tab):
             category_box, values=list(notes.CATEGORY_NAMES.values()), state="readonly"
         )
         self.category.pack(ipady=px(2))
-        self.content = make_text(form, height=12)
+        self.content = make_text(form, height=12, headings=True)
         self.content.pack(fill="both", expand=True, pady=px((12, 0)))
         bottom = ttk.Frame(form)
         bottom.pack(fill="x", pady=px((10, 0)))
