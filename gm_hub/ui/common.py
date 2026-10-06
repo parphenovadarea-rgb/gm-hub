@@ -166,7 +166,7 @@ def setup_style(root: tk.Tk) -> None:
         image("tab_off"),
         ("selected", image("tab_on")),
         ("active", image("tab_hover")),
-        border=12,
+        border=18,
         padding=px(6),
         width=24,
         height=24,
@@ -199,11 +199,17 @@ def setup_style(root: tk.Tk) -> None:
         padding=px((12, 3)),
         **_no_3d(),
     )
-    style.map(
+    style.map("Seg.Toolbutton", foreground=[("selected", ACCENT)])
+    image_layout(
+        style,
         "Seg.Toolbutton",
-        background=[("selected", ACCENT_SOFT), ("active", BG_SOFT)],
-        foreground=[("selected", ACCENT)],
+        "seg_off",
+        [("selected", "seg_on"), ("active", "seg_hover")],
+        "Toolbutton",
     )
+    # Плашки сообщений — тоже со скруглёнными углами.
+    rounded_frame(style, "BannerError.TFrame", "banner_error")
+    rounded_frame(style, "BannerOk.TFrame", "banner_ok")
 
     # Поле ввода тоже со скруглённой рамкой; при фокусе рамка зелёная.
     style.element_create(
@@ -211,7 +217,7 @@ def setup_style(root: tk.Tk) -> None:
         "image",
         image("field"),
         ("focus", image("field_focus")),
-        border=12,
+        border=18,
         padding=px(6),
         width=24,
         height=24,
@@ -294,7 +300,8 @@ def setup_style(root: tk.Tk) -> None:
             )
         ],
     )
-    flat_box = {"bordercolor": LINE, "lightcolor": BG, "darkcolor": BG}
+    # Рамку поля рисует скруглённая картинка, у кнопки-стрелки рамки нет.
+    flat_box = {"bordercolor": BG, "lightcolor": BG, "darkcolor": BG}
     style.configure(
         "TCombobox",
         fieldbackground=BG,
@@ -314,8 +321,27 @@ def setup_style(root: tk.Tk) -> None:
         padding=px(4),
         **flat_box,
     )
-    style.configure("TCheckbutton", indicatorcolor=BG, indicatorsize=px(15))
-    style.configure("Page.TCheckbutton", indicatorsize=px(15))
+    # Галочка — картинка со скруглёнными углами.
+    style.element_create(
+        "Rounded.check", "image", image("check_off"), ("selected", image("check_on"))
+    )
+    for name in ("TCheckbutton", "Page.TCheckbutton"):
+        style.layout(
+            name,
+            [
+                (
+                    "Checkbutton.padding",
+                    {
+                        "sticky": "nsew",
+                        "children": [
+                            ("Rounded.check", {"side": "left", "sticky": ""}),
+                            ("Checkbutton.label", {"side": "left", "sticky": "nsew"}),
+                        ],
+                    },
+                )
+            ],
+        )
+    style.configure("TCheckbutton", padding=px((0, 2)))
     style.map("TCheckbutton", indicatorcolor=[("selected", ACCENT)])
 
     style.configure("Header.TFrame", background=BG)
@@ -353,7 +379,7 @@ def image(name: str) -> tk.PhotoImage:
 def rounded_button(style, style_name, normal, hover, disabled=None) -> None:
     """Делает кнопку стиля style_name со скруглёнными углами.
 
-    Фон кнопки — картинка со скруглённым прямоугольником. Параметр border=12
+    Фон кнопки — картинка со скруглённым прямоугольником. Параметр border=18
     говорит Tk не растягивать углы картинки, а тянуть только середину.
 
     Args:
@@ -372,7 +398,7 @@ def rounded_button(style, style_name, normal, hover, disabled=None) -> None:
         "image",
         image(normal),
         *states,
-        border=12,
+        border=18,
         padding=px(6),
         width=24,
         height=24,
@@ -400,6 +426,50 @@ def rounded_button(style, style_name, normal, hover, disabled=None) -> None:
     )
 
 
+def image_layout(style, style_name, normal, states, base) -> None:
+    """Делает фон кнопки-переключателя скруглённой картинкой.
+
+    Args:
+        style: Объект ttk.Style.
+        style_name: Имя стиля, например «Seg.Toolbutton».
+        normal: Картинка обычного состояния.
+        states: Список пар (состояние, картинка), например («selected», …).
+        base: Базовый класс элементов, например «Toolbutton».
+    """
+    element = style_name + ".rounded"
+    style.element_create(
+        element,
+        "image",
+        image(normal),
+        *[(state, image(name)) for state, name in states],
+        border=18,
+        padding=px(6),
+        width=24,
+        height=24,
+        sticky="nsew",
+    )
+    style.layout(
+        style_name,
+        [
+            (
+                element,
+                {
+                    "sticky": "nsew",
+                    "children": [
+                        (
+                            base + ".padding",
+                            {
+                                "sticky": "nsew",
+                                "children": [(base + ".label", {"sticky": "nsew"})],
+                            },
+                        )
+                    ],
+                },
+            )
+        ],
+    )
+
+
 def rounded_frame(style, style_name: str, picture: str) -> None:
     """Делает рамку (ttk.Frame) со скруглёнными углами.
 
@@ -416,7 +486,7 @@ def rounded_frame(style, style_name: str, picture: str) -> None:
         element,
         "image",
         image(picture),
-        border=12,
+        border=18,
         padding=px(6),
         width=24,
         height=24,
@@ -461,7 +531,7 @@ def card(parent, title=None, note=None, action=None) -> ttk.Frame:
         Внутренняя рамка карточки, в неё кладутся поля.
         Саму карточку размещать через .master.
     """
-    outer = ttk.Frame(parent, style="Card.TFrame", padding=px(2))
+    outer = ttk.Frame(parent, style="Card.TFrame", padding=px(5))
     head_label = None
     if title:
         head = ttk.Frame(outer, padding=px((12, 8)))
@@ -495,8 +565,6 @@ def segmented(parent, options, variable, command) -> ttk.Frame:
     """
     frame = ttk.Frame(parent, style="Card.TFrame", padding=px(2))
     for index, (text, value) in enumerate(options):
-        if index:
-            ttk.Frame(frame, style="Line.TFrame", width=1).pack(side="left", fill="y")
         ttk.Radiobutton(
             frame,
             text=text,
@@ -508,10 +576,13 @@ def segmented(parent, options, variable, command) -> ttk.Frame:
     return frame
 
 
-class Banner(tk.Frame):
+class Banner(ttk.Frame):
     """Цветная плашка с сообщением: ошибка (красная) или успех (зелёная)."""
 
-    KINDS = {"error": ("!", RED_SOFT, RED), "ok": ("✓", GREEN_SOFT, ACCENT)}
+    KINDS = {
+        "error": ("!", RED_SOFT, RED, "BannerError.TFrame"),
+        "ok": ("✓", GREEN_SOFT, ACCENT, "BannerOk.TFrame"),
+    }
 
     def __init__(self, parent, **pack_options):
         """Создаёт скрытую плашку.
@@ -520,8 +591,9 @@ class Banner(tk.Frame):
             parent: Родительский виджет.
             **pack_options: Как размещать плашку при показе (параметры pack).
         """
-        super().__init__(parent, padx=px(12), pady=px(7))
+        super().__init__(parent, style="BannerError.TFrame", padding=px((14, 9)))
         self.pack_options = pack_options
+        self.prefix = "Page." if on_page(self) else ""  # фон уголков плашки
         self.icon = tk.Label(self, font=FONT_BOLD)
         self.icon.pack(side="left", padx=px((0, 8)))
         self.text = tk.Label(self, justify="left", anchor="w", font=FONT_SMALL)
@@ -537,8 +609,11 @@ class Banner(tk.Frame):
             message: Текст сообщения.
             kind: «error» или «ok».
         """
-        icon, bg, fg = self.KINDS[kind]
-        for widget in (self, self.icon, self.text):
+        icon, bg, fg, style = self.KINDS[kind]
+        if self.prefix:
+            ttk.Style(self).configure(self.prefix + style, background=PAGE)
+        self.config(style=self.prefix + style)
+        for widget in (self.icon, self.text):
             widget.config(bg=bg)
         self.icon.config(text=icon, fg=fg)
         self.text.config(text=message, fg=fg)
@@ -708,6 +783,7 @@ class MainFrame(ttk.Frame):
         # Ctrl+S сохраняет форму на открытой вкладке (если на ней есть форма).
         # Сравниваем код клавиши, чтобы работало и в русской раскладке.
         self.bind_all("<Control-KeyPress>", self.on_ctrl_key)
+        fix_corners(self)
         self.show_tab()
 
     def on_ctrl_key(self, event) -> None:
@@ -784,6 +860,47 @@ def ask_text(parent, title: str, prompt: str):
     return result["text"]
 
 
+# Стили со скруглёнными картинками. Прозрачные уголки картинки Tk заливает
+# фоном самого виджета, поэтому на мятном фоне страницы им нужен мятный фон.
+ROUNDED_STYLES = {
+    "TButton",
+    "Accent.TButton",
+    "Danger.TButton",
+    "Small.TButton",
+    "TEntry",
+    "TCombobox",
+    "TSpinbox",
+    "Card.TFrame",
+}
+
+
+def on_page(widget) -> bool:
+    """Проверяет, лежит ли виджет прямо на мятном фоне страницы."""
+    parent = widget.master
+    if isinstance(parent, ttk.Widget):
+        return "Page" in str(parent.cget("style"))
+    return str(parent.cget("bg")).lower() == PAGE
+
+
+def fix_corners(widget) -> None:
+    """Делает уголки скруглённых элементов на фоне страницы мятными.
+
+    Для элемента на странице создаётся стиль «Page.<стиль>» — он берёт всё
+    оформление исходного стиля, меняется только цвет фона.
+
+    Args:
+        widget: Окно или рамка, внутри которой проверить все элементы.
+    """
+    for child in widget.winfo_children():
+        if isinstance(child, ttk.Widget):
+            name = str(child.cget("style")) or child.winfo_class()
+            if name in ROUNDED_STYLES and on_page(child):
+                page_style = "Page." + name
+                ttk.Style(child).configure(page_style, background=PAGE)
+                child.configure(style=page_style)
+        fix_corners(child)
+
+
 def short_name(full_name: str) -> str:
     """Сокращает ФИО для таблицы: «Жукова Полина» -> «Жукова П.».
 
@@ -829,7 +946,7 @@ class RoundText(ttk.Frame):
             headings: Выделять ли жирным заголовки (для заметок).
         """
         self.headings = headings
-        super().__init__(parent, style="Card.TFrame", padding=px(3))
+        super().__init__(parent, style="Card.TFrame", padding=px(5))
         self.text = tk.Text(
             self,
             height=height,

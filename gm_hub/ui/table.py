@@ -126,7 +126,7 @@ class RowTable(ttk.Frame):
             border: Рамка вокруг таблицы (внутри карточки не нужна).
         """
         super().__init__(
-            parent, style="Card.TFrame" if border else "TFrame", padding=px(2)
+            parent, style="Card.TFrame" if border else "TFrame", padding=px(5)
         )
         self.columns = columns
         self.on_select = on_select
