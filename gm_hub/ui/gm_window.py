@@ -11,6 +11,8 @@ from gm_hub.config import to_short, to_show
 from gm_hub.logic import characters, games, notes, signups
 from gm_hub.logic.errors import ValidationError
 from gm_hub.ui.common import (
+    px,
+    ask_text,
     ACCENT,
     PAGE,
     Banner,
@@ -63,7 +65,7 @@ class Tab(ttk.Frame):
             parent: Область вкладок.
             app: Приложение.
         """
-        super().__init__(parent, padding=16, style="Page.TFrame")
+        super().__init__(parent, padding=px(16), style="Page.TFrame")
         self.app = app
 
     def status(self, text: str) -> None:
@@ -95,7 +97,7 @@ class ScheduleTab(Tab):
         self.game_id = None  # id сессии в форме, None — новая сессия
 
         form = card(self, "Новая сессия")
-        form.master.pack(side="right", fill="y", padx=(16, 0))
+        form.master.pack(side="right", fill="y", padx=px((16, 0)))
         self.form = form
 
         top = ttk.Frame(self, style="Page.TFrame")
@@ -107,7 +109,7 @@ class ScheduleTab(Tab):
         ).pack(side="right")
         ttk.Button(
             top, text="Отменить сессию", style="Danger.TButton", command=self.on_cancel
-        ).pack(side="right", padx=6)
+        ).pack(side="right", padx=px(6))
         ttk.Button(
             top, text="+ Новая сессия", style="Accent.TButton", command=self.clear_form
         ).pack(side="right")
@@ -123,7 +125,7 @@ class ScheduleTab(Tab):
             ],
             on_select=self.on_select,
         )
-        self.table.pack(fill="both", expand=True, pady=(12, 0))
+        self.table.pack(fill="both", expand=True, pady=px((12, 0)))
 
         field(form, "Название *")
         self.title_entry = ttk.Entry(form, width=34)
@@ -134,7 +136,7 @@ class ScheduleTab(Tab):
         row = ttk.Frame(form)
         row.pack(fill="x")
         date_box, time_box = ttk.Frame(row), ttk.Frame(row)
-        date_box.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        date_box.pack(side="left", fill="x", expand=True, padx=px((0, 8)))
         time_box.pack(side="left", fill="x", expand=True)
         field(date_box, "Дата * (ДД.ММ.ГГГГ)")
         self.date_entry = ttk.Entry(date_box, width=14)
@@ -151,8 +153,8 @@ class ScheduleTab(Tab):
         self.save_button = ttk.Button(
             form, text="Опубликовать", style="Accent.TButton", command=self.on_save
         )
-        self.save_button.pack(fill="x", pady=(14, 0))
-        self.error = Banner(form, fill="x", pady=(10, 0), before=self.save_button)
+        self.save_button.pack(fill="x", pady=px((14, 0)))
+        self.error = Banner(form, fill="x", pady=px((10, 0)), before=self.save_button)
         self.clear_form()
 
     def refresh(self):
@@ -280,37 +282,37 @@ class SignupsTab(Tab):
         self.rows = {}  # id заявки -> строка заявки
 
         info = card(self, "Карточка персонажа", "только чтение")
-        info.master.pack(side="right", fill="y", padx=(16, 0))
+        info.master.pack(side="right", fill="y", padx=px((16, 0)))
         self.char_name = ttk.Label(info, font=("Georgia", 15, "bold"), width=19)
         self.char_name.pack(anchor="w")
         self.char_owner = ttk.Label(info, style="Muted.TLabel")
-        self.char_owner.pack(anchor="w", pady=(0, 10))
+        self.char_owner.pack(anchor="w", pady=px((0, 10)))
         grid = ttk.Frame(info)
         grid.pack(fill="x")
         self.char_fields = {}
         for row, name in enumerate(("Раса", "Класс", "Уровень")):
             ttk.Label(grid, text=name, style="Muted.TLabel").grid(
-                row=row, column=0, sticky="w", pady=2
+                row=row, column=0, sticky="w", pady=px(2)
             )
             self.char_fields[name] = ttk.Label(grid)
-            self.char_fields[name].grid(row=row, column=1, sticky="w", padx=(40, 0))
+            self.char_fields[name].grid(row=row, column=1, sticky="w", padx=px((40, 0)))
         ttk.Label(info, text="ПРЕДЫСТОРИЯ", style="Small.TLabel").pack(
-            anchor="w", pady=(14, 4)
+            anchor="w", pady=px((14, 4))
         )
-        self.char_story = ttk.Label(info, wraplength=230, justify="left")
+        self.char_story = ttk.Label(info, wraplength=px(230), justify="left")
         self.char_story.pack(anchor="w")
 
         top = ttk.Frame(self, style="Page.TFrame")
         top.pack(fill="x")
         ttk.Label(top, text="Сессия:", style="Page.TLabel").pack(side="left")
         self.game_box = ttk.Combobox(top, state="readonly", width=36)
-        self.game_box.pack(side="left", padx=6)
+        self.game_box.pack(side="left", padx=px(6))
         self.game_box.bind("<<ComboboxSelected>>", lambda e: self.load_signups())
         self.status_box = ttk.Combobox(
             top, values=self.STATUS_FILTER, state="readonly", width=17
         )
         self.status_box.set("Все статусы")
-        self.status_box.pack(side="left", padx=6)
+        self.status_box.pack(side="left", padx=px(6))
         self.status_box.bind("<<ComboboxSelected>>", lambda e: self.load_signups())
         self.seats = tk.Frame(top, bg=PAGE)
         self.seats.pack(side="right")
@@ -327,8 +329,8 @@ class SignupsTab(Tab):
             ],
             on_select=self.on_select,
         )
-        self.table.pack(fill="both", expand=True, pady=(12, 0))
-        self.blocked = Banner(self, fill="x", pady=(12, 0))
+        self.table.pack(fill="both", expand=True, pady=px((12, 0)))
+        self.blocked = Banner(self, fill="x", pady=px((12, 0)))
 
     def refresh(self):
         """Перечитывает список своих сессий и заявки выбранной сессии."""
@@ -369,7 +371,7 @@ class SignupsTab(Tab):
             squares = "■" * game["confirmed"] + "□" * free
             tk.Label(
                 self.seats, text=squares, fg=ACCENT, bg=PAGE, font=("Segoe UI", 12)
-            ).pack(side="left", padx=(0, 10))
+            ).pack(side="left", padx=px((0, 10)))
         ttk.Label(
             self.seats,
             text=f"Свободно: {free} из {game['max_players']}",
@@ -437,7 +439,11 @@ class SignupsTab(Tab):
                     short_name(row["player_name"]),
                     ("muted", row["comment"] or "—"),
                     to_short(row["created_at"]),
-                    ("pill", status, STATUS_PILL[row["status"]]),
+                    (
+                        "stack",
+                        [("pill", status, STATUS_PILL[row["status"]])]
+                        + ([("muted", row["reason"])] if row["reason"] else []),
+                    ),
                     actions,
                 ],
                 sort=[
@@ -476,8 +482,11 @@ class SignupsTab(Tab):
         self.load_signups()
 
     def on_reject(self, signup_id):
-        """Отклоняет заявку."""
-        signups.reject_signup(self.app.conn, self.app.user, signup_id)
+        """Отклоняет заявку; причину отказа можно указать (её увидит Игрок)."""
+        reason = ask_text(self, "Отклонить заявку", "Причина отказа (необязательно)")
+        if reason is None:
+            return
+        signups.reject_signup(self.app.conn, self.app.user, signup_id, reason)
         self.load_signups()
 
 
@@ -498,7 +507,7 @@ class GameNotesTab(Tab):
         self.table.pack(side="left", fill="y")
 
         right = card(self)
-        right.master.pack(side="left", fill="both", expand=True, padx=(16, 0))
+        right.master.pack(side="left", fill="both", expand=True, padx=px((16, 0)))
         head = ttk.Frame(right)
         head.pack(fill="x")
         self.title_label = ttk.Label(
@@ -506,24 +515,24 @@ class GameNotesTab(Tab):
         )
         self.title_label.pack(side="left")
         self.date_label = ttk.Label(head, style="Muted.TLabel")
-        self.date_label.pack(side="left", padx=(6, 0))
+        self.date_label.pack(side="left", padx=px((6, 0)))
         ttk.Label(head, text="видно только Мастеру", style="Small.TLabel").pack(
             side="right"
         )
-        ttk.Frame(right, style="Line.TFrame", height=1).pack(fill="x", pady=10)
+        ttk.Frame(right, style="Line.TFrame", height=1).pack(fill="x", pady=px(10))
         self.team = ttk.Frame(right)
-        self.team.pack(fill="x", pady=(0, 10))
+        self.team.pack(fill="x", pady=px((0, 10)))
         self.editor = make_text(right, height=14)
         self.editor.pack(fill="both", expand=True)
         bottom = ttk.Frame(right)
-        bottom.pack(fill="x", pady=(10, 0))
+        bottom.pack(fill="x", pady=px((10, 0)))
         self.updated = ttk.Label(bottom, style="Small.TLabel")
         self.updated.pack(side="left")
         ttk.Button(
             bottom, text="Сохранить", style="Accent.TButton", command=self.on_save
         ).pack(side="right")
         ttk.Button(bottom, text="Отменить правки", command=self.reload).pack(
-            side="right", padx=6
+            side="right", padx=px(6)
         )
         ttk.Button(
             bottom,
@@ -565,7 +574,7 @@ class GameNotesTab(Tab):
         for child in self.team.winfo_children():
             child.destroy()
         ttk.Label(self.team, text="СОСТАВ", style="Small.TLabel").pack(
-            side="left", padx=(0, 8)
+            side="left", padx=px((0, 8))
         )
         team = [
             row
@@ -576,7 +585,7 @@ class GameNotesTab(Tab):
             text = f"{row['character_name']}  {row['character_class'] or ''} " + str(
                 row["character_level"]
             )
-            Pill(self.team, text, "chip").pack(side="left", padx=(0, 6))
+            Pill(self.team, text, "chip").pack(side="left", padx=px((0, 6)))
         if not team:
             ttk.Label(self.team, text="пока никого", style="Muted.TLabel").pack(
                 side="left"
@@ -631,25 +640,25 @@ class WorldTab(Tab):
             side="left"
         )
         self.search = ttk.Entry(top, width=28)
-        self.search.pack(side="left", padx=6)
+        self.search.pack(side="left", padx=px(6))
         self.search.bind("<KeyRelease>", lambda e: self.refresh())
         ttk.Button(
             top, text="+ Новая запись", style="Accent.TButton", command=self.clear_form
         ).pack(side="right")
 
         body = ttk.Frame(self, style="Page.TFrame")
-        body.pack(fill="both", expand=True, pady=(12, 0))
+        body.pack(fill="both", expand=True, pady=px((12, 0)))
         self.table = RowTable(
             body, [("Записи", 280, True)], header=False, on_select=self.on_select
         )
         self.table.pack(side="left", fill="y")
 
         form = card(body)
-        form.master.pack(side="left", fill="both", expand=True, padx=(16, 0))
+        form.master.pack(side="left", fill="both", expand=True, padx=px((16, 0)))
         row = ttk.Frame(form)
         row.pack(fill="x")
         title_box, category_box = ttk.Frame(row), ttk.Frame(row)
-        title_box.pack(side="left", fill="x", expand=True, padx=(0, 12))
+        title_box.pack(side="left", fill="x", expand=True, padx=px((0, 12)))
         category_box.pack(side="left")
         field(title_box, "Заголовок *")
         self.title_entry = ttk.Entry(title_box)
@@ -658,11 +667,11 @@ class WorldTab(Tab):
         self.category = ttk.Combobox(
             category_box, values=list(notes.CATEGORY_NAMES.values()), state="readonly"
         )
-        self.category.pack(ipady=2)
+        self.category.pack(ipady=px(2))
         self.content = make_text(form, height=12)
-        self.content.pack(fill="both", expand=True, pady=(12, 0))
+        self.content.pack(fill="both", expand=True, pady=px((12, 0)))
         bottom = ttk.Frame(form)
-        bottom.pack(fill="x", pady=(10, 0))
+        bottom.pack(fill="x", pady=px((10, 0)))
         self.updated = ttk.Label(bottom, style="Small.TLabel")
         self.updated.pack(side="left")
         ttk.Button(
@@ -670,8 +679,8 @@ class WorldTab(Tab):
         ).pack(side="right")
         ttk.Button(
             bottom, text="Удалить", style="Danger.TButton", command=self.on_delete
-        ).pack(side="right", padx=6)
-        self.error = Banner(form, fill="x", pady=(10, 0), before=bottom)
+        ).pack(side="right", padx=px(6))
+        self.error = Banner(form, fill="x", pady=px((10, 0)), before=bottom)
         self.clear_form()
 
     def refresh(self):
