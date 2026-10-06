@@ -12,6 +12,7 @@ from gm_hub.config import now_str, to_short, to_show
 from gm_hub.logic import auth, characters, games, signups
 from gm_hub.logic.errors import ValidationError
 from gm_hub.ui.common import (
+    px,
     Banner,
     ChoiceCards,
     MainFrame,
@@ -29,6 +30,16 @@ from gm_hub.ui.table import STATUS_PILL, RowTable
 def character_info(c) -> str:
     """Возвращает подпись персонажа: «Полурослик · Плут · 4 ур.»."""
     return f"{c['race'] or '—'} · {c['class'] or '—'} · {c['level']} ур."
+
+
+def status_cell(row):
+    """Статус заявки таблеткой, под ним — причина отказа, если она есть."""
+    if row["game_status"] == "CANCELLED":
+        pill = ("pill", "Сессия отменена", "bad")
+    else:
+        pill = ("pill", signups.STATUS_NAMES[row["status"]], STATUS_PILL[row["status"]])
+    reason = row["reason"] if row["reason"] != "Сессия отменена" else None
+    return ("stack", [pill] + ([("muted", reason)] if reason else []))
 
 
 class PlayerFrame(MainFrame):
@@ -61,7 +72,7 @@ class Tab(ttk.Frame):
             parent: Область вкладок.
             app: Приложение.
         """
-        super().__init__(parent, padding=16, style="Page.TFrame")
+        super().__init__(parent, padding=px(16), style="Page.TFrame")
         self.app = app
 
     def status(self, text: str) -> None:
@@ -84,11 +95,11 @@ class ShowcaseTab(Tab):
 
         # Слева — выбор Мастера с поиском по имени.
         left = ttk.Frame(self, style="Page.TFrame")
-        left.pack(side="left", fill="y", padx=(0, 12))
+        left.pack(side="left", fill="y", padx=px((0, 12)))
         ttk.Label(left, text="Мастер", style="PageBold.TLabel").pack(anchor="w")
         ttk.Label(left, text="⌕ найти по имени", style="Page.TLabel").pack(anchor="w")
         self.search = ttk.Entry(left, width=16)
-        self.search.pack(fill="x", pady=(4, 10))
+        self.search.pack(fill="x", pady=px((4, 10)))
         self.search.bind("<KeyRelease>", lambda e: self.load_masters())
         self.masters = RowTable(
             left, [("Мастера", 150, True)], header=False, on_select=self.on_master
@@ -96,13 +107,13 @@ class ShowcaseTab(Tab):
         self.masters.pack(fill="y", expand=True)
 
         form = card(self, "Запись на сессию")
-        form.master.pack(side="right", fill="y", padx=(16, 0))
+        form.master.pack(side="right", fill="y", padx=px((16, 0)))
         self.info_title = ttk.Label(
             form,
             text="Выберите сессию в таблице",
             style="Bold.TLabel",
             width=28,
-            wraplength=230,
+            wraplength=px(230),
         )
         self.info_title.pack(anchor="w")
         self.info_when = ttk.Label(form, style="Muted.TLabel")
@@ -116,14 +127,14 @@ class ShowcaseTab(Tab):
         self.send_button = ttk.Button(
             form, text="Отправить заявку", style="Accent.TButton", command=self.on_send
         )
-        self.send_button.pack(fill="x", pady=(14, 0))
-        self.error = Banner(form, fill="x", pady=(10, 0), before=self.send_button)
+        self.send_button.pack(fill="x", pady=px((14, 0)))
+        self.error = Banner(form, fill="x", pady=px((10, 0)), before=self.send_button)
         ttk.Label(
             form,
             text="Без выбранного персонажа кнопка покажет:\n"
             "«Выберите персонажа для заявки».",
             style="Small.TLabel",
-        ).pack(anchor="w", pady=(10, 0))
+        ).pack(anchor="w", pady=px((10, 0)))
 
         top = ttk.Frame(self, style="Page.TFrame")
         top.pack(fill="x")
@@ -150,7 +161,7 @@ class ShowcaseTab(Tab):
             ],
             on_select=self.on_select,
         )
-        self.table.pack(fill="both", expand=True, pady=(12, 0))
+        self.table.pack(fill="both", expand=True, pady=px((12, 0)))
 
     def refresh(self):
         """Перечитывает Мастеров, витрину и список персонажей."""
@@ -299,7 +310,7 @@ class MySignupsTab(Tab):
         super().__init__(parent, app)
         top = ttk.Frame(self, style="Page.TFrame")
         top.pack(fill="x")
-        self.banner = Banner(self, fill="x", pady=(0, 12), before=top)
+        self.banner = Banner(self, fill="x", pady=px((0, 12)), before=top)
         self.period = tk.StringVar(value="future")
         segmented(top, self.PERIODS, self.period, self.refresh).pack(side="left")
         ttk.Button(
@@ -319,7 +330,7 @@ class MySignupsTab(Tab):
                 ("Решение", 100, False),
             ],
         )
-        self.table.pack(fill="both", expand=True, pady=(12, 0))
+        self.table.pack(fill="both", expand=True, pady=px((12, 0)))
 
     def refresh(self):
         """Перечитывает заявки текущего Игрока (сценарий 14)."""
@@ -344,11 +355,7 @@ class MySignupsTab(Tab):
                     to_show(row["scheduled_at"]),
                     row["character_name"],
                     ("muted", row["comment"] or "—"),
-                    (
-                        "pill",
-                        signups.STATUS_NAMES[row["status"]],
-                        STATUS_PILL[row["status"]],
-                    ),
+                    status_cell(row),
                     ("muted", to_short(row["decided_at"])),
                 ],
                 sort=[
@@ -410,12 +417,14 @@ class CharactersTab(Tab):
         self.table.pack(fill="both", expand=True)
 
         form = card(self)
-        form.master.pack(side="left", fill="both", expand=True, padx=(16, 0))
+        form.master.pack(side="left", fill="both", expand=True, padx=px((16, 0)))
         row = ttk.Frame(form)
         row.pack(fill="x")
         boxes = [ttk.Frame(row) for _ in range(3)]
         for index, box in enumerate(boxes):
-            box.grid(row=0, column=index, sticky="ew", padx=(0, 12) if index < 2 else 0)
+            box.grid(
+                row=0, column=index, sticky="ew", padx=px((0, 12)) if index < 2 else 0
+            )
         row.columnconfigure((0, 1, 2), weight=1, uniform="col")
         field(boxes[0], "Имя *")
         self.name = ttk.Entry(boxes[0])
@@ -430,7 +439,7 @@ class CharactersTab(Tab):
         self.backstory = make_text(form, height=7)
         self.backstory.pack(fill="both", expand=True)
         buttons = ttk.Frame(form)
-        buttons.pack(fill="x", pady=(10, 0))
+        buttons.pack(fill="x", pady=px((10, 0)))
         ttk.Button(
             buttons,
             text="Удалить персонажа",
@@ -441,9 +450,9 @@ class CharactersTab(Tab):
             buttons, text="Сохранить", style="Accent.TButton", command=self.on_save
         ).pack(side="right")
         ttk.Button(buttons, text="Отменить", command=self.reload).pack(
-            side="right", padx=6
+            side="right", padx=px(6)
         )
-        self.error = Banner(form, fill="x", pady=(10, 0), before=buttons)
+        self.error = Banner(form, fill="x", pady=px((10, 0)), before=buttons)
         self.clear_form()
 
     def refresh(self):
