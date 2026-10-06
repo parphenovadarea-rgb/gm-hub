@@ -159,7 +159,13 @@ class ScheduleTab(Tab):
 
     def refresh(self):
         """Перечитывает сессии текущего Мастера из БД."""
-        self.table.clear("Сессий нет")
+        hints = {
+            "PLANNED": "Предстоящих сессий пока нет.\n"
+            "Нажмите «+ Новая сессия», чтобы опубликовать первую игру.",
+            "CLOSED": "Прошедших сессий пока нет.",
+            "CANCELLED": "Отменённых сессий нет.",
+        }
+        self.table.clear(hints[self.period.get()])
         for game in self.my_games(self.period.get()):
             free = free_of(game)
             title = [("bold", game["title"])]
@@ -382,7 +388,9 @@ class SignupsTab(Tab):
         """Показывает заявки выбранной сессии."""
         self.show_character(None)
         self.blocked.hide()
-        self.table.clear("Заявок пока нет")
+        self.table.clear(
+            "Заявок на эту сессию пока нет.\nИгроки увидят её на витрине сессий."
+        )
         game_id = self.game_ids.get(self.game_box.get())
         if game_id is None:
             self.show_seats(None)
@@ -544,7 +552,7 @@ class GameNotesTab(Tab):
     def refresh(self):
         """Перечитывает список своих предстоящих и прошедших сессий."""
         conn, user = self.app.conn, self.app.user
-        self.table.clear("Сессий нет")
+        self.table.clear("Сессий нет.\nСоздайте сессию во вкладке «Расписание».")
         for game in self.my_games() + self.my_games("CLOSED"):
             note = notes.get_game_note(conn, user, game["id"])
             if game["status"] == "CLOSED":
@@ -696,7 +704,7 @@ class WorldTab(Tab):
         for button, (name, code) in zip(buttons, self.FILTERS):
             count = sum(1 for n in everything if not code or n["category"] == code)
             button.config(text=f"{name} · {count}")
-        self.table.clear("Записей нет")
+        self.table.clear("Записей нет.\nНажмите «+ Новая запись».")
         rows = notes.list_world_notes(
             conn, user, self.category_filter.get() or None, self.search.get()
         )

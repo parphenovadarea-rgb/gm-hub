@@ -177,7 +177,7 @@ class ShowcaseTab(Tab):
     def load_masters(self):
         """Показывает Мастеров, подходящих под поиск по имени."""
         found = auth.list_masters(self.app.conn, self.search.get())
-        self.masters.clear("Мастер не найден")
+        self.masters.clear("Мастер не найден.\nПроверьте имя.")
         for master in found:
             count = len(games.list_games(self.app.conn, gm_id=master["id"]))
             self.masters.add(
@@ -211,7 +211,7 @@ class ShowcaseTab(Tab):
         self.info_when.config(text="")
         if self.master_id is None:
             self.master_label.config(text="Мастер не выбран")
-            self.table.clear("Выберите Мастера слева")
+            self.table.clear("Выберите Мастера в списке слева.")
             return
         master = next(m for m in auth.list_masters(conn) if m["id"] == self.master_id)
         self.master_label.config(text=f"Сессии Мастера: {master['full_name']}")
@@ -335,7 +335,9 @@ class MySignupsTab(Tab):
     def refresh(self):
         """Перечитывает заявки текущего Игрока (сценарий 14)."""
         self.banner.hide()
-        self.table.clear("Заявок нет")
+        self.table.clear(
+            "Заявок пока нет.\nЗапишитесь на игру во вкладке «Витрина сессий»."
+        )
         rows = signups.list_for_player(self.app.conn, self.app.user)
         now = now_str()
         for row in rows:
@@ -461,7 +463,7 @@ class CharactersTab(Tab):
         for row in signups.list_for_player(self.app.conn, self.app.user):
             by_status = counts.setdefault(row["character_id"], {})
             by_status[row["status"]] = by_status.get(row["status"], 0) + 1
-        self.table.clear("Персонажей пока нет")
+        self.table.clear("Персонажей пока нет.\nНажмите «+ Новый».")
         for c in characters.list_characters(self.app.conn, self.app.user):
             parts = [("bold", c["name"]), ("muted", character_info(c))]
             by_status = counts.get(c["id"], {})
