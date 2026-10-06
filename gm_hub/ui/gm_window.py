@@ -13,7 +13,7 @@ from gm_hub.logic.errors import ValidationError
 from gm_hub.ui.common import (
     px,
     ask_text,
-    ACCENT,
+    GREEN_TEXT,
     PAGE,
     Banner,
     MainFrame,
@@ -376,7 +376,7 @@ class SignupsTab(Tab):
         if game["max_players"] <= 8:
             squares = "■" * game["confirmed"] + "□" * free
             tk.Label(
-                self.seats, text=squares, fg=ACCENT, bg=PAGE, font=("Segoe UI", 12)
+                self.seats, text=squares, fg=GREEN_TEXT, bg=PAGE, font=("Segoe UI", 12)
             ).pack(side="left", padx=px((0, 10)))
         ttk.Label(
             self.seats,

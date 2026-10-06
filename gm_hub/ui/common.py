@@ -11,26 +11,30 @@ from pathlib import Path
 from tkinter import ttk
 
 from gm_hub.config import DATETIME_FORMAT
+from gm_hub.ui.theme import COLORS as C
+from gm_hub.ui.theme import THEME
 
-# Палитра из макетов Figma.
-ACCENT = "#285331"  # тёмно-зелёные кнопки
-ACCENT_HOVER = "#1e4026"
-ACCENT_SOFT = "#c3cfc6"  # выбранная строка, выбранный фильтр
-GREEN_SOFT = "#e3f3e6"  # успех, выбранная карточка
-BG = "#ffffff"
-BG_SOFT = "#f7f8fa"
-PAGE = "#d9eedd"  # фон страницы под карточками — мятный зелёный
-PAGE_INK = "#3d5a44"  # подписи прямо на зелёном фоне
-HEAD_BG = ACCENT  # тёмно-зелёная шапка окна
-HEAD_TEXT = "#d4e7d8"  # светлые подписи в шапке
-HEAD = "#eef0f4"  # заголовки таблиц
-LINE = "#d6d9e2"
-INK = "#1b1d26"
-MUTED = "#5f6475"
-RED = "#a1362c"
-RED_SOFT = "#fbe7e4"
-YELLOW = "#8a5a00"
-YELLOW_SOFT = "#fff1d1"
+# Цвета берутся из выбранной темы (светлая или тёмная, см. theme.py).
+ACCENT = C["accent"]  # кнопки
+ACCENT_HOVER = C["accent_hover"]
+ACCENT_SOFT = C["accent_soft"]  # выбранный фильтр
+ACCENT_DISABLED_TEXT = C["accent_disabled_text"]
+GREEN_SOFT = C["green_soft"]  # успех, выбранная карточка
+GREEN_TEXT = C["green_text"]
+BG = C["bg"]  # карточки и таблицы
+FIELD = C["field"]  # поля ввода
+PAGE = C["page"]  # фон страницы под карточками
+PAGE_INK = C["page_ink"]  # подписи прямо на фоне страницы
+HEAD_BG = C["head_bg"]  # шапка окна
+HEAD_TEXT = C["head_text"]  # подписи в шапке
+HEAD = C["head"]  # заголовки таблиц
+LINE = C["line"]
+INK = C["ink"]
+MUTED = C["muted"]
+RED = C["red"]
+RED_SOFT = C["red_soft"]
+YELLOW = C["yellow"]
+YELLOW_SOFT = C["yellow_soft"]
 
 # Масштаб экрана Windows (100 %, 125 %, 150 % ...). Программа сообщает Windows,
 # что сама учитывает масштаб (см. app.make_dpi_aware) — тогда текст чёткий,
@@ -89,7 +93,7 @@ def setup_style(root: tk.Tk) -> None:
     style.configure("Bold.TLabel", font=FONT_BOLD)
     style.configure("Title.TLabel", font=FONT_TITLE)
     style.configure("Logo.TLabel", font=FONT_LOGO)
-    style.configure("Green.TLabel", foreground=ACCENT, font=FONT_BOLD)
+    style.configure("Green.TLabel", foreground=GREEN_TEXT, font=FONT_BOLD)
 
     # Кнопки: белая с рамкой, зелёная главная, белая с красным текстом.
     # Скруглённые углы — это картинки из папки img, растянутые по краям.
@@ -106,7 +110,7 @@ def setup_style(root: tk.Tk) -> None:
     style.configure(
         "Accent.TButton", foreground="white", font=FONT_BOLD, padding=px((12, 4))
     )
-    style.map("Accent.TButton", foreground=[("disabled", "#8fa596")])
+    style.map("Accent.TButton", foreground=[("disabled", ACCENT_DISABLED_TEXT)])
     style.configure("Danger.TButton", foreground=RED, padding=px((12, 4)))
     # Компактные кнопки внутри строк таблицы («Подтвердить», «Отклонить»).
     rounded_button(
@@ -122,7 +126,7 @@ def setup_style(root: tk.Tk) -> None:
     style.configure(
         "Small.Accent.TButton", foreground="white", font=FONT_SMALL, padding=px((9, 2))
     )
-    style.map("Small.Accent.TButton", foreground=[("disabled", "#8fa596")])
+    style.map("Small.Accent.TButton", foreground=[("disabled", ACCENT_DISABLED_TEXT)])
     style.configure(
         "Small.Danger.TButton", foreground=RED, font=FONT_SMALL, padding=px((9, 2))
     )
@@ -200,7 +204,7 @@ def setup_style(root: tk.Tk) -> None:
         padding=px((12, 3)),
         **_no_3d(),
     )
-    style.map("Seg.Toolbutton", foreground=[("selected", ACCENT)])
+    style.map("Seg.Toolbutton", foreground=[("selected", GREEN_TEXT)])
     image_layout(
         style,
         "Seg.Toolbutton",
@@ -245,7 +249,14 @@ def setup_style(root: tk.Tk) -> None:
             )
         ],
     )
-    style.configure("TEntry", padding=px((8, 4)))
+    style.configure(
+        "TEntry", padding=px((8, 4)), fieldbackground=FIELD, insertcolor=INK
+    )
+    # выпадающий список Combobox — обычный Listbox, его цвета задаются отдельно
+    root.option_add("*TCombobox*Listbox.background", FIELD)
+    root.option_add("*TCombobox*Listbox.foreground", INK)
+    root.option_add("*TCombobox*Listbox.selectBackground", ACCENT)
+    root.option_add("*TCombobox*Listbox.selectForeground", "white")
     style.layout(
         "TCombobox",
         [
@@ -306,17 +317,27 @@ def setup_style(root: tk.Tk) -> None:
     flat_box = {"bordercolor": BG, "lightcolor": BG, "darkcolor": BG}
     style.configure(
         "TCombobox",
-        fieldbackground=BG,
+        fieldbackground=FIELD,
+        foreground=INK,
+        insertcolor=INK,
         background=BG,
         arrowcolor=MUTED,
         arrowsize=px(13),
         padding=px(4),
         **flat_box,
     )
-    style.map("TCombobox", fieldbackground=[("readonly", BG)])
+    style.map(
+        "TCombobox",
+        fieldbackground=[("readonly", FIELD)],
+        foreground=[("readonly", INK)],
+        selectbackground=[("readonly", FIELD)],
+        selectforeground=[("readonly", INK)],
+    )
     style.configure(
         "TSpinbox",
-        fieldbackground=BG,
+        fieldbackground=FIELD,
+        foreground=INK,
+        insertcolor=INK,
         background=BG,
         arrowcolor=MUTED,
         arrowsize=px(13),
@@ -355,7 +376,7 @@ def setup_style(root: tk.Tk) -> None:
     style.map("Page.TCheckbutton", background=[("active", PAGE)])
     style.configure("Title.TLabel", background=BG)
     style.configure(
-        "PageGreen.TLabel", background=PAGE, foreground=ACCENT, font=FONT_BOLD
+        "PageGreen.TLabel", background=PAGE, foreground=GREEN_TEXT, font=FONT_BOLD
     )
     style.configure("Line.TFrame", background=LINE)
 
@@ -374,7 +395,8 @@ def image(name: str) -> tk.PhotoImage:
         Картинка Tk.
     """
     if name not in _images:
-        _images[name] = tk.PhotoImage(file=str(IMG_DIR / f"{name}.png"))
+        folder = IMG_DIR / "dark" if THEME == "dark" else IMG_DIR
+        _images[name] = tk.PhotoImage(file=str(folder / f"{name}.png"))
     return _images[name]
 
 
@@ -666,7 +688,7 @@ class ChoiceCards(ttk.Frame):
             mark.pack(side="left", padx=px((0, 8)))
             texts = tk.Frame(box, bg=BG)
             texts.pack(side="left", fill="x")
-            tk.Label(texts, text=title, font=FONT_BOLD, bg=BG, anchor="w").pack(
+            tk.Label(texts, text=title, font=FONT_BOLD, bg=BG, fg=INK, anchor="w").pack(
                 fill="x"
             )
             tk.Label(
@@ -744,7 +766,12 @@ class MainFrame(ttk.Frame):
         links.pack(anchor="e")
         role = "Мастер" if app.user["role"] == "GM" else "Игрок"
         ttk.Label(links, text=role, style="HeadSmall.TLabel").pack(side="left")
-        for text, command in (("Профиль", app.show_profile), ("Выйти", app.logout)):
+        theme_text = "Светлая тема" if THEME == "dark" else "Тёмная тема"
+        for text, command in (
+            (theme_text, app.toggle_theme),
+            ("Профиль", app.show_profile),
+            ("Выйти", app.logout),
+        ):
             label = link(links, text, command, color="white", bg=HEAD_BG)
             label.config(font=FONT_SMALL_BOLD)
             label.pack(side="left", padx=px((10, 0)))
@@ -960,7 +987,9 @@ class RoundText(ttk.Frame):
             padx=px(8),
             pady=px(5),
             font=FONT,
-            bg=BG,
+            bg=FIELD,
+            fg=INK,
+            insertbackground=INK,
         )
         self.text.pack(fill="both", expand=True)
         # Короткие строки без точки в конце — заголовки («Сцена 1. Обвал»),

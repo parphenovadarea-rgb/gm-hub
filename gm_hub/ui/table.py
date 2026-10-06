@@ -26,6 +26,7 @@ import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import ttk
 
+from gm_hub.ui.theme import COLORS as C
 from gm_hub.ui.common import (
     px,
     ACCENT,
@@ -45,15 +46,15 @@ from gm_hub.ui.common import (
     YELLOW_SOFT,
 )
 
-ROW_LINE = "#e7e9ef"  # разделитель строк
-PENDING_ROW = "#fff6e3"  # строка с новой заявкой
-SOON_ROW = "#eef5ef"  # сессия скоро — запись истекает (п. 4.1.6 ТЗ)
-SELECTED_ROW = "#e1f0e4"  # выбранная строка — светло-зелёная с полоской слева
-HOVER_ROW = "#f3f8f4"  # строка под курсором мыши
+ROW_LINE = C["row_line"]  # разделитель строк
+PENDING_ROW = C["pending_row"]  # строка с новой заявкой
+SOON_ROW = C["soon_row"]  # сессия скоро — запись истекает (п. 4.1.6 ТЗ)
+SELECTED_ROW = C["selected_row"]  # выбранная строка — с полоской слева
+HOVER_ROW = C["hover_row"]  # строка под курсором мыши
 
 # Цвета таблеток: (фон, текст, рамка)
 PILLS = {
-    "ok": (GREEN_SOFT, "#2a7a3b", None),
+    "ok": (GREEN_SOFT, C["green_text"], None),
     "warn": (YELLOW_SOFT, YELLOW, None),
     "bad": (RED_SOFT, RED, None),
     "grey": (HEAD, MUTED, None),
@@ -310,10 +311,10 @@ class RowTable(ttk.Frame):
         """Квадратики занятых и свободных мест и подпись, как в макете."""
         box = tk.Frame(parent, bg=bg)
         if taken + free <= 8:
-            tk.Label(box, text="■" * taken, fg=ACCENT, bg=bg, font=FONT).pack(
+            tk.Label(box, text="■" * taken, fg=C["seat_taken"], bg=bg, font=FONT).pack(
                 side="left"
             )
-            tk.Label(box, text="□" * free, fg="#9aa1b0", bg=bg, font=FONT).pack(
+            tk.Label(box, text="□" * free, fg=C["seat_free"], bg=bg, font=FONT).pack(
                 side="left"
             )
         text = f"{free} из {taken + free}" if free > 0 else "мест нет"
@@ -321,7 +322,7 @@ class RowTable(ttk.Frame):
             box,
             text=text,
             bg=bg,
-            fg=ACCENT if free <= 0 else INK,
+            fg=C["seat_taken"] if free <= 0 else INK,
             font=FONT_BOLD if free <= 0 else FONT,
         ).pack(side="left", padx=px((6, 0)))
         return box
