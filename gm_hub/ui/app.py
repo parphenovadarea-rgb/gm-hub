@@ -1,5 +1,6 @@
 """Главное окно приложения: переключает экраны входа, регистрации и кабинетов."""
 
+import ctypes
 import sqlite3
 import tkinter as tk
 import traceback
@@ -8,10 +9,22 @@ from tkinter import messagebox
 from gm_hub.logic import auth
 from gm_hub.logic.errors import AccessError, ValidationError
 from gm_hub.ui.auth_windows import LoginFrame, RegisterFrame
-from gm_hub.ui.common import setup_style
+from gm_hub.ui.common import px, setup_style
 from gm_hub.ui.gm_window import GMFrame
 from gm_hub.ui.player_window import PlayerFrame
 from gm_hub.ui.profile_window import ProfileWindow
+
+
+def make_dpi_aware() -> None:
+    """Сообщает Windows, что программа сама учитывает масштаб экрана.
+
+    Без этого при масштабе 125–150 % Windows растягивает окно как картинку
+    и текст получается размытым. Вызывать до создания окна.
+    """
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    except (AttributeError, OSError):
+        pass  # не Windows или старая Windows — оставляем как есть
 
 
 class App(tk.Tk):
@@ -50,7 +63,8 @@ class App(tk.Tk):
         if self.screen is not None:
             self.screen.destroy()
         self.title(f"Game Master Hub — {title}")
-        self.geometry(size)
+        width, height = (int(n) for n in size.split("x"))
+        self.geometry(f"{px(width)}x{px(height)}")
         self.screen = screen_class(self)
         self.screen.pack(fill="both", expand=True)
 

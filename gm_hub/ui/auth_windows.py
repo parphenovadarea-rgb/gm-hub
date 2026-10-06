@@ -4,7 +4,7 @@ from tkinter import ttk
 
 from gm_hub.logic import auth
 from gm_hub.logic.errors import ValidationError
-from gm_hub.ui.common import Banner, ChoiceCards, field, link
+from gm_hub.ui.common import Banner, ChoiceCards, field, link, px
 
 ROLES = [
     ("GM", "Мастер", "создаю сессии, веду сюжет"),
@@ -21,9 +21,9 @@ class LoginFrame(ttk.Frame):
         Args:
             app: Приложение (нужны app.conn и app.open_main).
         """
-        super().__init__(app, padding=(40, 30))
+        super().__init__(app, padding=px((40, 30)))
         self.app = app
-        ttk.Label(self, text="Вход", style="Title.TLabel").pack(pady=(30, 16))
+        ttk.Label(self, text="Вход", style="Title.TLabel").pack(pady=px((30, 16)))
 
         field(self, "Логин")
         self.login = ttk.Entry(self)
@@ -35,8 +35,8 @@ class LoginFrame(ttk.Frame):
         self.button = ttk.Button(
             self, text="Войти", style="Accent.TButton", command=self.on_login
         )
-        self.button.pack(fill="x", pady=(16, 10))
-        self.error = Banner(self, fill="x", pady=(12, 0), before=self.button)
+        self.button.pack(fill="x", pady=px((16, 10)))
+        self.error = Banner(self, fill="x", pady=px((12, 0)), before=self.button)
 
         bottom = ttk.Frame(self)
         bottom.pack()
@@ -65,9 +65,9 @@ class RegisterFrame(ttk.Frame):
         Args:
             app: Приложение (нужны app.conn, app.show_login, app.open_main).
         """
-        super().__init__(app, padding=(40, 20))
+        super().__init__(app, padding=px((40, 20)))
         self.app = app
-        ttk.Label(self, text="Регистрация", style="Title.TLabel").pack(pady=(10, 2))
+        ttk.Label(self, text="Регистрация", style="Title.TLabel").pack(pady=px((10, 2)))
         ttk.Label(
             self,
             text="Создайте аккаунт, чтобы вести игры или записываться на них",
@@ -85,7 +85,7 @@ class RegisterFrame(ttk.Frame):
         for column, name in enumerate(("Пароль", "Повтор")):
             box = ttk.Frame(row)
             box.grid(
-                row=0, column=column, sticky="ew", padx=(0, 8) if column == 0 else 0
+                row=0, column=column, sticky="ew", padx=px((0, 8)) if column == 0 else 0
             )
             field(box, name)
             self.entries[name] = ttk.Entry(box, show="●")
@@ -103,8 +103,8 @@ class RegisterFrame(ttk.Frame):
             style="Accent.TButton",
             command=self.on_register,
         )
-        self.button.pack(fill="x", pady=(8, 10))
-        self.error = Banner(self, fill="x", pady=(4, 4), before=self.button)
+        self.button.pack(fill="x", pady=px((8, 10)))
+        self.error = Banner(self, fill="x", pady=px((4, 4)), before=self.button)
 
         bottom = ttk.Frame(self)
         bottom.pack()

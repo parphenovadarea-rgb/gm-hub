@@ -27,6 +27,7 @@ import tkinter.font as tkfont
 from tkinter import ttk
 
 from gm_hub.ui.common import (
+    px,
     ACCENT,
     ACCENT_SOFT,
     BG,
@@ -123,7 +124,9 @@ class RowTable(ttk.Frame):
             on_select: Функция, вызываемая с id строки при её выборе.
             border: Рамка вокруг таблицы (внутри карточки не нужна).
         """
-        super().__init__(parent, style="Card.TFrame" if border else "TFrame", padding=2)
+        super().__init__(
+            parent, style="Card.TFrame" if border else "TFrame", padding=px(2)
+        )
         self.columns = columns
         self.on_select = on_select
         self.selected = None
@@ -134,7 +137,7 @@ class RowTable(ttk.Frame):
 
         # Прокрутка: сетка лежит в рамке внутри Canvas, крутится колесом мыши.
         # Ширина области = сумма столбцов с отступами (иначе у Canvas свой размер).
-        width = sum(w for _, w, _ in columns) + 16 * len(columns) + 16
+        width = px(sum(w for _, w, _ in columns) + 16 * len(columns) + 16)
         self.canvas = tk.Canvas(
             self, bg=BG, highlightthickness=0, bd=0, width=width, height=100
         )
@@ -148,7 +151,9 @@ class RowTable(ttk.Frame):
         self.canvas.bind("<Enter>", lambda e: self._wheel(True))
         self.canvas.bind("<Leave>", lambda e: self._wheel(False))
         for index, (_, width, stretch) in enumerate(columns):
-            self.body.columnconfigure(index, minsize=width, weight=1 if stretch else 0)
+            self.body.columnconfigure(
+                index, minsize=px(width), weight=1 if stretch else 0
+            )
 
         span = len(columns)
         self.first_row = 0
@@ -161,19 +166,19 @@ class RowTable(ttk.Frame):
                     self.body, text=title, bg=HEAD, fg=INK, font=FONT_BOLD, anchor="w"
                 )
                 label.grid(row=0, column=index, sticky="ew", padx=self._pad(index))
-                label.config(pady=6, cursor="hand2")
+                label.config(pady=px(6), cursor="hand2")
                 label.bind("<Button-1>", lambda e, i=index: self.sort_by(i))
                 self.head_labels.append(label)
             tk.Frame(self.body, bg=LINE, height=1).grid(
                 row=1, column=0, columnspan=span, sticky="ew"
             )
             self.first_row = 2
-        self.empty = tk.Label(self.body, bg=BG, fg=MUTED, font=FONT, pady=20)
+        self.empty = tk.Label(self.body, bg=BG, fg=MUTED, font=FONT, pady=px(20))
 
     def _pad(self, index: int) -> tuple:
         """Отступы ячейки: у первой и последней колонки побольше."""
         last = len(self.columns) - 1
-        return (16 if index == 0 else 8, 16 if index == last else 8)
+        return px((16 if index == 0 else 8, 16 if index == last else 8))
 
     def _update_scroll(self) -> None:
         """Обновляет область прокрутки после изменения строк."""
@@ -240,7 +245,11 @@ class RowTable(ttk.Frame):
         row["back"].lower()  # подложка под ячейками
         for index, widget in enumerate(row["cells"]):
             widget.grid(
-                row=grid_row, column=index, sticky="w", padx=self._pad(index), pady=6
+                row=grid_row,
+                column=index,
+                sticky="w",
+                padx=self._pad(index),
+                pady=px(6),
             )
         row["line"].grid(row=grid_row + 1, column=0, columnspan=span, sticky="ew")
 
@@ -261,7 +270,7 @@ class RowTable(ttk.Frame):
                 font=font,
                 anchor="w",
                 justify="left",
-                wraplength=max(width, 60),
+                wraplength=px(max(width, 60)),
             )
         if kind == "pill":
             return Pill(parent, cell[1], cell[2], bg)
@@ -273,7 +282,7 @@ class RowTable(ttk.Frame):
                 button = ttk.Button(box, text=text, style=style, command=command)
                 if not enabled:
                     button.state(["disabled"])
-                button.pack(side="left", padx=(0, 6))
+                button.pack(side="left", padx=px((0, 6)))
             return box
         box = tk.Frame(parent, bg=bg)  # line или stack
         for index, part in enumerate(cell[1]):
@@ -282,7 +291,7 @@ class RowTable(ttk.Frame):
                 part = ("sub", part[1])
             widget = self._make(box, part, bg, width)
             if kind == "line":
-                widget.pack(side="left", padx=(0, 3))
+                widget.pack(side="left", padx=px((0, 3)))
             else:
                 widget.pack(anchor="w")
         return box
@@ -304,7 +313,7 @@ class RowTable(ttk.Frame):
             bg=bg,
             fg=ACCENT if free <= 0 else INK,
             font=FONT_BOLD if free <= 0 else FONT,
-        ).pack(side="left", padx=(6, 0))
+        ).pack(side="left", padx=px((6, 0)))
         return box
 
     def _bind_click(self, widget, row_id) -> None:
