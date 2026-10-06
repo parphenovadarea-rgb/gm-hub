@@ -29,7 +29,6 @@ RED_SOFT = "#fbe7e4"
 YELLOW = "#8a5a00"
 YELLOW_SOFT = "#fff1d1"
 
-# Размеры как в образцах окон: основной текст 13 px, подписи 12 px.
 # Масштаб экрана Windows (100 %, 125 %, 150 % ...). Программа сообщает Windows,
 # что сама учитывает масштаб (см. app.make_dpi_aware) — тогда текст чёткий,
 # а не растянутый картинкой. Шрифты в пунктах Tk масштабирует сам, а размеры
@@ -51,12 +50,13 @@ def px(value):
     return round(value * SCALE)
 
 
-FONT = ("Segoe UI", 10)
-FONT_BOLD = ("Segoe UI Semibold", 10)
-FONT_SMALL = ("Segoe UI", 9)
-FONT_SMALL_BOLD = ("Segoe UI Semibold", 9)
-FONT_LOGO = ("Georgia", 13, "bold")
-FONT_TITLE = ("Georgia", 18, "bold")
+# Размеры как в макетах Figma: основной текст 15 px, подписи 13 px.
+FONT = ("Segoe UI", 11)
+FONT_BOLD = ("Segoe UI Semibold", 11)
+FONT_SMALL = ("Segoe UI", 10)
+FONT_SMALL_BOLD = ("Segoe UI Semibold", 10)
+FONT_LOGO = ("Georgia", 15, "bold")
+FONT_TITLE = ("Georgia", 20, "bold")
 
 
 def setup_style(root: tk.Tk) -> None:
@@ -285,6 +285,7 @@ def setup_style(root: tk.Tk) -> None:
         fieldbackground=BG,
         background=BG,
         arrowcolor=MUTED,
+        arrowsize=px(13),
         padding=px(4),
         **flat_box,
     )
@@ -294,10 +295,12 @@ def setup_style(root: tk.Tk) -> None:
         fieldbackground=BG,
         background=BG,
         arrowcolor=MUTED,
+        arrowsize=px(13),
         padding=px(4),
         **flat_box,
     )
-    style.configure("TCheckbutton", indicatorcolor=BG)
+    style.configure("TCheckbutton", indicatorcolor=BG, indicatorsize=px(15))
+    style.configure("Page.TCheckbutton", indicatorsize=px(15))
     style.map("TCheckbutton", indicatorcolor=[("selected", ACCENT)])
 
     style.configure("Header.TFrame", background=BG)
@@ -805,13 +808,15 @@ class RoundText(ttk.Frame):
         text: Само поле Text внутри рамки.
     """
 
-    def __init__(self, parent, height: int = 5):
+    def __init__(self, parent, height: int = 5, headings: bool = False):
         """Создаёт поле.
 
         Args:
             parent: Родительский виджет.
             height: Высота в строках.
+            headings: Выделять ли жирным заголовки (для заметок).
         """
+        self.headings = headings
         super().__init__(parent, style="Card.TFrame", padding=px(3))
         self.text = tk.Text(
             self,
@@ -835,6 +840,8 @@ class RoundText(ttk.Frame):
     def highlight(self) -> None:
         """Выделяет жирным заголовки и подписи в тексте заметки."""
         self.text.tag_remove("heading", "1.0", "end")
+        if not self.headings:
+            return
         lines = self.text.get("1.0", "end-1c").split("\n")
         for number, line in enumerate(lines, start=1):
             stripped = line.strip()
@@ -871,17 +878,18 @@ def set_text(widget: RoundText, value: str | None) -> None:
     widget.highlight()
 
 
-def make_text(parent, height: int = 5) -> RoundText:
+def make_text(parent, height: int = 5, headings: bool = False) -> RoundText:
     """Создаёт многострочное поле в общем стиле.
 
     Args:
         parent: Родительский виджет.
         height: Высота в строках.
+        headings: Выделять ли жирным заголовки (для заметок).
 
     Returns:
         Поле RoundText (текст внутри — в атрибуте .text).
     """
-    return RoundText(parent, height)
+    return RoundText(parent, height, headings)
 
 
 def field(parent, label: str, page: bool = False) -> ttk.Label:

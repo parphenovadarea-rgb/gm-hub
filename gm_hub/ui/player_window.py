@@ -102,7 +102,7 @@ class ShowcaseTab(Tab):
         self.search.pack(fill="x", pady=px((4, 10)))
         self.search.bind("<KeyRelease>", lambda e: self.load_masters())
         self.masters = RowTable(
-            left, [("Мастера", 150, True)], header=False, on_select=self.on_master
+            left, [("Мастера", 168, True)], header=False, on_select=self.on_master
         )
         self.masters.pack(fill="y", expand=True)
 
@@ -154,10 +154,10 @@ class ShowcaseTab(Tab):
         self.table = RowTable(
             self,
             [
-                ("Сессия", 210, True),
-                ("Когда", 140, False),
-                ("Свободно", 75, False),
-                ("Моя заявка", 125, False),
+                ("Сессия", 235, True),
+                ("Когда", 157, False),
+                ("Свободно", 84, False),
+                ("Моя заявка", 140, False),
             ],
             on_select=self.on_select,
         )
@@ -322,12 +322,12 @@ class MySignupsTab(Tab):
         self.table = RowTable(
             self,
             [
-                ("Сессия", 260, True),
-                ("Когда", 140, False),
-                ("Персонаж", 110, False),
-                ("Мой комментарий", 180, True),
-                ("Статус", 150, False),
-                ("Решение", 100, False),
+                ("Сессия", 291, True),
+                ("Когда", 157, False),
+                ("Персонаж", 123, False),
+                ("Мой комментарий", 202, True),
+                ("Статус", 168, False),
+                ("Решение", 112, False),
             ],
         )
         self.table.pack(fill="both", expand=True, pady=px((12, 0)))
@@ -409,7 +409,7 @@ class CharactersTab(Tab):
         left.configure(padding=0)
         self.table = RowTable(
             left,
-            [("Персонаж", 240, True)],
+            [("Персонаж", 269, True)],
             header=False,
             on_select=self.on_select,
             border=False,
