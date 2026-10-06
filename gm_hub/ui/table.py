@@ -29,7 +29,6 @@ from tkinter import ttk
 from gm_hub.ui.common import (
     px,
     ACCENT,
-    ACCENT_SOFT,
     BG,
     FONT,
     FONT_BOLD,
@@ -49,6 +48,8 @@ from gm_hub.ui.common import (
 ROW_LINE = "#e7e9ef"  # разделитель строк
 PENDING_ROW = "#fff6e3"  # строка с новой заявкой
 SOON_ROW = "#eef5ef"  # сессия скоро — запись истекает (п. 4.1.6 ТЗ)
+SELECTED_ROW = "#e1f0e4"  # выбранная строка — светло-зелёная с полоской слева
+HOVER_ROW = "#f3f8f4"  # строка под курсором мыши
 
 # Цвета таблеток: (фон, текст, рамка)
 PILLS = {
@@ -134,6 +135,7 @@ class RowTable(ttk.Frame):
         self.sort_column = None
         self.sort_reverse = False
         self.head_labels = []
+        self.hovered = None  # id строки под курсором
 
         # Прокрутка: сетка лежит в рамке внутри Canvas, крутится колесом мыши.
         # Ширина области = сумма столбцов с отступами (иначе у Canvas свой размер).
@@ -149,7 +151,7 @@ class RowTable(ttk.Frame):
         )
         self.body.bind("<Configure>", lambda e: self._update_scroll())
         self.canvas.bind("<Enter>", lambda e: self._wheel(True))
-        self.canvas.bind("<Leave>", lambda e: self._wheel(False))
+        self.canvas.bind("<Leave>", lambda e: (self._wheel(False), self._hover(None)))
         for index, (_, width, stretch) in enumerate(columns):
             self.body.columnconfigure(
                 index, minsize=px(width), weight=1 if stretch else 0
@@ -173,7 +175,10 @@ class RowTable(ttk.Frame):
                 row=1, column=0, columnspan=span, sticky="ew"
             )
             self.first_row = 2
-        self.empty = tk.Label(self.body, bg=BG, fg=MUTED, font=FONT, pady=px(20))
+        # Подсказка в пустой таблице: что сделать, чтобы здесь появились данные.
+        self.empty = tk.Label(
+            self.body, bg=BG, fg=MUTED, font=FONT, pady=px(40), justify="center"
+        )
 
     def _pad(self, index: int) -> tuple:
         """Отступы ячейки: у первой и последней колонки побольше."""
@@ -201,10 +206,11 @@ class RowTable(ttk.Frame):
             empty_text: Подпись, которая показывается, пока строк нет.
         """
         for row in self.rows.values():
-            for widget in [row["back"], row["line"]] + row["cells"]:
+            for widget in [row["back"], row["bar"], row["line"]] + row["cells"]:
                 widget.destroy()
         self.rows = {}
         self.selected = None
+        self.hovered = None
         self.empty.config(text=empty_text)
         if empty_text:
             self.empty.grid(row=self.first_row, column=0, columnspan=len(self.columns))
@@ -225,17 +231,19 @@ class RowTable(ttk.Frame):
         self.empty.grid_remove()
         bg = {True: PENDING_ROW, "soon": SOON_ROW}.get(highlight, BG)
         back = tk.Frame(self.body, bg=bg)  # подложка — цвет всей строки
+        bar = tk.Frame(self.body, bg=bg, width=px(4))  # полоска выбранной строки
         widgets = []
         for index, (cell, (_, width, _)) in enumerate(zip(cells, self.columns)):
             widgets.append(self._make(self.body, cell, bg, width - 16))
         line = tk.Frame(self.body, bg=ROW_LINE, height=1)
         values = sort if sort is not None else [_cell_text(c) for c in cells]
-        row = {"back": back, "cells": widgets, "line": line, "bg": bg}
+        row = {"back": back, "bar": bar, "cells": widgets, "line": line, "bg": bg}
         row["values"] = values
         self.rows[row_id] = row
         self._place(row, len(self.rows) - 1)
-        for widget in [back] + widgets:
+        for widget in [back, bar] + widgets:
             self._bind_click(widget, row_id)
+            self._bind_hover(widget, row_id)
 
     def _place(self, row, position: int) -> None:
         """Ставит строку в сетку на место position (считая от первой строки)."""
@@ -243,6 +251,7 @@ class RowTable(ttk.Frame):
         span = len(self.columns)
         row["back"].grid(row=grid_row, column=0, columnspan=span, sticky="nsew")
         row["back"].lower()  # подложка под ячейками
+        row["bar"].grid(row=grid_row, column=0, sticky="nsw")
         for index, widget in enumerate(row["cells"]):
             widget.grid(
                 row=grid_row,
@@ -332,10 +341,29 @@ class RowTable(ttk.Frame):
         for child in widget.winfo_children():
             self._paint(child, bg)
 
-    def _paint_row(self, row, bg) -> None:
-        """Перекрашивает всю строку: подложку и ячейки."""
+    def _paint_row(self, row, bg, bar=None) -> None:
+        """Перекрашивает всю строку: подложку, ячейки и полоску слева."""
         for widget in [row["back"]] + row["cells"]:
             self._paint(widget, bg)
+        row["bar"].config(bg=bar or bg)
+
+    def _bind_hover(self, widget, row_id) -> None:
+        """Наведение мыши на любую часть строки подсвечивает строку."""
+        widget.bind("<Enter>", lambda e: self._hover(row_id), add="+")
+        for child in widget.winfo_children():
+            self._bind_hover(child, row_id)
+
+    def _hover(self, row_id) -> None:
+        """Подсвечивает строку под курсором (выбранную и цветные не трогает)."""
+        if row_id == self.hovered:
+            return
+        old = self.rows.get(self.hovered)
+        if old and self.hovered != self.selected:
+            self._paint_row(old, old["bg"])
+        self.hovered = row_id
+        new = self.rows.get(row_id)
+        if new and row_id != self.selected and new["bg"] == BG:
+            self._paint_row(new, HOVER_ROW)
 
     def select(self, row_id, notify: bool = True) -> None:
         """Выбирает строку и подсвечивает её.
@@ -350,7 +378,7 @@ class RowTable(ttk.Frame):
             old = self.rows[self.selected]
             self._paint_row(old, old["bg"])
         self.selected = row_id
-        self._paint_row(self.rows[row_id], ACCENT_SOFT)
+        self._paint_row(self.rows[row_id], SELECTED_ROW, bar=ACCENT)
         if notify and self.on_select:
             self.on_select(row_id)
 

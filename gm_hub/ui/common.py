@@ -21,6 +21,8 @@ BG = "#ffffff"
 BG_SOFT = "#f7f8fa"
 PAGE = "#d9eedd"  # фон страницы под карточками — мятный зелёный
 PAGE_INK = "#3d5a44"  # подписи прямо на зелёном фоне
+HEAD_BG = ACCENT  # тёмно-зелёная шапка окна
+HEAD_TEXT = "#d4e7d8"  # светлые подписи в шапке
 HEAD = "#eef0f4"  # заголовки таблиц
 LINE = "#d6d9e2"
 INK = "#1b1d26"
@@ -141,9 +143,21 @@ def setup_style(root: tk.Tk) -> None:
         darkcolor=BG,
         font=FONT_BOLD,
     )
+    style.configure("Tab.Toolbutton", foreground=HEAD_TEXT, background=HEAD_BG)
     style.map(
         "Tab.Toolbutton",
-        foreground=[("selected", INK)],
+        foreground=[("selected", INK), ("active", "white")],
+        background=[("selected", PAGE), ("active", HEAD_BG)],
+    )
+    style.configure("Head.TFrame", background=HEAD_BG)
+    style.configure(
+        "HeadLogo.TLabel", background=HEAD_BG, foreground="white", font=FONT_LOGO
+    )
+    style.configure(
+        "HeadSmall.TLabel", background=HEAD_BG, foreground=HEAD_TEXT, font=FONT_SMALL
+    )
+    style.configure(
+        "HeadBold.TLabel", background=HEAD_BG, foreground="white", font=FONT_BOLD
     )
     # Выбранная вкладка — закладка со скруглёнными верхними углами.
     style.element_create(
@@ -151,7 +165,7 @@ def setup_style(root: tk.Tk) -> None:
         "image",
         image("tab_off"),
         ("selected", image("tab_on")),
-        ("active", image("tab_on")),
+        ("active", image("tab_hover")),
         border=12,
         padding=px(6),
         width=24,
@@ -634,37 +648,34 @@ class MainFrame(ttk.Frame):
         """
         super().__init__(app)
         self.app = app
-        header = ttk.Frame(self, padding=px((16, 10, 16, 0)))
+        header = ttk.Frame(self, padding=px((16, 10, 16, 0)), style="Head.TFrame")
         header.pack(fill="x")
 
-        brand = ttk.Frame(header)
-        brand.pack(side="left", anchor="n", pady=px((0, 8)))
-        names = ttk.Frame(brand)
-        names.pack(side="left")
-        ttk.Label(names, text="Game Master Hub", style="Logo.TLabel").pack(anchor="w")
-        ttk.Label(names, text=subtitle, style="Small.TLabel").pack(anchor="w")
+        brand = ttk.Frame(header, style="Head.TFrame")
+        brand.pack(side="left", anchor="n", pady=px((0, 10)))
+        ttk.Label(brand, text="Game Master Hub", style="HeadLogo.TLabel").pack(
+            anchor="w"
+        )
+        ttk.Label(brand, text=subtitle, style="HeadSmall.TLabel").pack(anchor="w")
 
-        user = ttk.Frame(header)
+        user = ttk.Frame(header, style="Head.TFrame")
         user.pack(side="right", anchor="n")
-        ttk.Label(user, text=app.user["full_name"], style="Bold.TLabel").pack(
+        ttk.Label(user, text=app.user["full_name"], style="HeadBold.TLabel").pack(
             anchor="e"
         )
-        links = ttk.Frame(user)
+        links = ttk.Frame(user, style="Head.TFrame")
         links.pack(anchor="e")
         role = "Мастер" if app.user["role"] == "GM" else "Игрок"
-        ttk.Label(links, text=role, style="Small.TLabel").pack(side="left")
-        for text, command, color in (
-            ("Профиль", app.show_profile, ACCENT),
-            ("Выйти", app.logout, RED),
-        ):
-            link(links, text, command, color=color).pack(side="left", padx=px((8, 0)))
-            links.winfo_children()[-1].config(font=FONT_SMALL)
+        ttk.Label(links, text=role, style="HeadSmall.TLabel").pack(side="left")
+        for text, command in (("Профиль", app.show_profile), ("Выйти", app.logout)):
+            label = link(links, text, command, color="white", bg=HEAD_BG)
+            label.config(font=FONT_SMALL_BOLD)
+            label.pack(side="left", padx=px((10, 0)))
 
         self.current = tk.IntVar(value=0)
         self.tab_buttons = []
-        bar = ttk.Frame(header)
+        bar = ttk.Frame(header, style="Head.TFrame")
         bar.pack(side="left", anchor="s", padx=px((48, 0)))
-        ttk.Frame(self, style="Line.TFrame", height=1).pack(fill="x")
 
         # Строка итогов внизу окна (как в образцах): белая, над ней линия.
         footer = ttk.Frame(self, padding=px((16, 6)))
@@ -679,7 +690,7 @@ class MainFrame(ttk.Frame):
         body.columnconfigure(0, weight=1)
         self.tabs = []
         for index, (title, tab_class) in enumerate(tabs):
-            holder = tk.Frame(bar, bg=BG)
+            holder = tk.Frame(bar, bg=HEAD_BG)
             holder.pack(side="left")
             button = ttk.Radiobutton(
                 holder,
