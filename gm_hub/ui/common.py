@@ -147,7 +147,8 @@ def setup_style(root: tk.Tk) -> None:
     style.map(
         "Tab.Toolbutton",
         foreground=[("selected", INK), ("active", "white")],
-        background=[("selected", PAGE), ("active", HEAD_BG)],
+        # уголки картинки-закладки заливаются цветом шапки — тогда они круглые
+        background=[("selected", HEAD_BG), ("active", HEAD_BG)],
     )
     style.configure("Head.TFrame", background=HEAD_BG)
     style.configure(
@@ -210,6 +211,7 @@ def setup_style(root: tk.Tk) -> None:
     # Плашки сообщений — тоже со скруглёнными углами.
     rounded_frame(style, "BannerError.TFrame", "banner_error")
     rounded_frame(style, "BannerOk.TFrame", "banner_ok")
+    rounded_frame(style, "TableHead.TFrame", "table_head")  # заголовок таблицы
 
     # Поле ввода тоже со скруглённой рамкой; при фокусе рамка зелёная.
     style.element_create(

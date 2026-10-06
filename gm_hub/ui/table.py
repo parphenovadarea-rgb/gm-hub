@@ -160,7 +160,8 @@ class RowTable(ttk.Frame):
         span = len(columns)
         self.first_row = 0
         if header:
-            tk.Frame(self.body, bg=HEAD).grid(
+            # серая полоса заголовка со скруглёнными верхними углами
+            ttk.Frame(self.body, style="TableHead.TFrame").grid(
                 row=0, column=0, columnspan=span, sticky="nsew"
             )
             for index, (title, _, _) in enumerate(columns):
