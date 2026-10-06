@@ -3,8 +3,9 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
 
+from gm_hub.db.database import backup_db
 from gm_hub.logic import auth
-from gm_hub.ui.common import BG, field
+from gm_hub.ui.common import BG, field, px
 
 
 class ProfileWindow(tk.Toplevel):
@@ -16,7 +17,7 @@ class ProfileWindow(tk.Toplevel):
         Args:
             app: Приложение (app.conn, app.user).
         """
-        super().__init__(app, bg=BG, padx=20, pady=16)
+        super().__init__(app, bg=BG, padx=px(20), pady=px(16))
         self.app = app
         self.title("Профиль")
         self.resizable(False, False)
@@ -30,7 +31,7 @@ class ProfileWindow(tk.Toplevel):
             self,
             text=f"Логин: {user['login']}  ·  {auth.ROLE_NAMES[user['role']]}",
             style="Muted.TLabel",
-        ).pack(anchor="w", pady=(0, 4))
+        ).pack(anchor="w", pady=px((0, 4)))
 
         self.entries = {}
         for name, show in (("ФИО *", ""), ("Текущий пароль *", "●")):
@@ -42,7 +43,7 @@ class ProfileWindow(tk.Toplevel):
         for column, name in enumerate(("Новый пароль", "Повтор нового")):
             box = ttk.Frame(row)
             box.grid(
-                row=0, column=column, sticky="ew", padx=(0, 8) if column == 0 else 0
+                row=0, column=column, sticky="ew", padx=px((0, 8)) if column == 0 else 0
             )
             field(box, name)
             self.entries[name] = ttk.Entry(box, show="●")
@@ -51,10 +52,10 @@ class ProfileWindow(tk.Toplevel):
         self.entries["ФИО *"].insert(0, user["full_name"])
         ttk.Label(
             self, text="Новый пароль можно не заполнять.", style="Small.TLabel"
-        ).pack(anchor="w", pady=(4, 0))
+        ).pack(anchor="w", pady=px((4, 0)))
 
         buttons = ttk.Frame(self)
-        buttons.pack(fill="x", pady=(14, 0))
+        buttons.pack(fill="x", pady=px((14, 0)))
         ttk.Button(
             buttons,
             text="Удалить аккаунт",
@@ -64,6 +65,16 @@ class ProfileWindow(tk.Toplevel):
         ttk.Button(
             buttons, text="Сохранить", style="Accent.TButton", command=self.on_save
         ).pack(side="right")
+        if user["role"] == "GM":
+            # Мастер — администратор системы, он делает резервные копии (п. 4.1.8).
+            ttk.Button(
+                self, text="Сохранить резервную копию БД", command=self.on_backup
+            ).pack(fill="x", pady=px((10, 0)))
+
+    def on_backup(self):
+        """Сохраняет копию БД в папку backups и сообщает, где она."""
+        path = backup_db(self.app.conn)
+        messagebox.showinfo("Резервная копия", f"Копия сохранена:\n{path}", parent=self)
 
     def value(self, name: str) -> str:
         """Возвращает текст поля по его подписи."""
