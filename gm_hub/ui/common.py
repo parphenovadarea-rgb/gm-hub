@@ -382,7 +382,14 @@ def setup_style(root: tk.Tk) -> None:
             ],
         )
     style.configure("TCheckbutton", padding=px((0, 2)))
-    style.map("TCheckbutton", indicatorcolor=[("selected", ACCENT)])
+    # clam при наведении делает фон галочки светлым — в тёмной теме текст
+    # пропадал; фон и цвет текста остаются прежними во всех состояниях.
+    style.map(
+        "TCheckbutton",
+        indicatorcolor=[("selected", ACCENT)],
+        background=[(state, BG) for state in ("disabled", "pressed", "active")],
+        foreground=[("active", INK)],
+    )
 
     style.configure("Header.TFrame", background=BG)
     style.configure("Page.TFrame", background=PAGE)
@@ -390,7 +397,11 @@ def setup_style(root: tk.Tk) -> None:
     style.configure("PageInk.TLabel", background=PAGE)
     style.configure("PageBold.TLabel", background=PAGE, font=FONT_BOLD)
     style.configure("Page.TCheckbutton", background=PAGE)
-    style.map("Page.TCheckbutton", background=[("active", PAGE)])
+    style.map(
+        "Page.TCheckbutton",
+        background=[(state, PAGE) for state in ("disabled", "pressed", "active")],
+        foreground=[("active", INK)],
+    )
     style.configure("Title.TLabel", background=BG)
     style.configure(
         "PageGreen.TLabel", background=PAGE, foreground=GREEN_TEXT, font=FONT_BOLD

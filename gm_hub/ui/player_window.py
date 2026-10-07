@@ -166,7 +166,7 @@ class ShowcaseTab(Tab):
         self.only_free = tk.BooleanVar(value=False)
         ttk.Checkbutton(
             filters,
-            text="Только со свободными местами",
+            text=" Только со свободными местами",
             variable=self.only_free,
             command=self.load_games,
             style="Page.TCheckbutton",
