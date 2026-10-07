@@ -1,13 +1,11 @@
 """Подключение к базе данных SQLite."""
 
 import sqlite3
-from datetime import datetime
 from pathlib import Path
 
 from gm_hub.config import DB_PATH
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
-BACKUP_DIR = DB_PATH.parent / "backups"
 
 
 def connect(path=DB_PATH) -> sqlite3.Connection:
@@ -37,6 +35,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     # столбцов — добавляем их, чтобы старый файл БД продолжил работать.
     add_column(conn, "World_Notes", "gm_id", "INTEGER REFERENCES Users (id)")
     add_column(conn, "Game_Signups", "reason", "TEXT")
+    add_column(conn, "Users", "signups_seen_at", "TEXT")
 
 
 def add_column(conn: sqlite3.Connection, table: str, column: str, sql_type: str):
@@ -52,27 +51,3 @@ def add_column(conn: sqlite3.Connection, table: str, column: str, sql_type: str)
     if column not in columns:
         with conn:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}")
-
-
-def backup_db(conn: sqlite3.Connection, folder=BACKUP_DIR) -> Path:
-    """Сохраняет копию БД в папку backups (п. 4.1.8 ТЗ).
-
-    Копия делается встроенным в sqlite3 способом backup — он корректно
-    копирует БД, даже пока программа с ней работает.
-
-    Args:
-        conn: Подключение к БД.
-        folder: Папка для копий.
-
-    Returns:
-        Путь к файлу копии, например backups/gm_hub_2026-10-06_14-30.db.
-    """
-    folder = Path(folder)
-    folder.mkdir(exist_ok=True)
-    path = folder / f"gm_hub_{datetime.now():%Y-%m-%d_%H-%M-%S}.db"
-    copy = sqlite3.connect(path)
-    try:
-        conn.backup(copy)
-    finally:
-        copy.close()
-    return path

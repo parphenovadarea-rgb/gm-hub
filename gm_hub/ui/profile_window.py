@@ -3,7 +3,6 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from gm_hub.db.database import backup_db
 from gm_hub.logic import auth
 from gm_hub.ui.common import BG, field, px
 
@@ -65,16 +64,6 @@ class ProfileWindow(tk.Toplevel):
         ttk.Button(
             buttons, text="Сохранить", style="Accent.TButton", command=self.on_save
         ).pack(side="right")
-        if user["role"] == "GM":
-            # Мастер — администратор системы, он делает резервные копии (п. 4.1.8).
-            ttk.Button(
-                self, text="Сохранить резервную копию БД", command=self.on_backup
-            ).pack(fill="x", pady=px((10, 0)))
-
-    def on_backup(self):
-        """Сохраняет копию БД в папку backups и сообщает, где она."""
-        path = backup_db(self.app.conn)
-        messagebox.showinfo("Резервная копия", f"Копия сохранена:\n{path}", parent=self)
 
     def value(self, name: str) -> str:
         """Возвращает текст поля по его подписи."""

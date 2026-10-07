@@ -7,7 +7,9 @@ CREATE TABLE IF NOT EXISTS Users (
     login         TEXT    NOT NULL UNIQUE,
     password_hash TEXT    NOT NULL,
     role          TEXT    NOT NULL CHECK (role IN ('GM', 'PLAYER')),
-    created_at    TEXT    NOT NULL
+    created_at    TEXT    NOT NULL,
+    -- когда Игрок последний раз открывал «Мои записи» (для отметки новых решений)
+    signups_seen_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS Characters (

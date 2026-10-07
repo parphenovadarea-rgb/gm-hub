@@ -32,6 +32,28 @@ def free_seats(max_players: int, confirmed: int) -> int:
     return max_players - confirmed
 
 
+# Фильтр витрины по дате: подпись -> сколько дней вперёд (None — все даты).
+PERIOD_DAYS = {"Все даты": None, "7 дней": 7, "30 дней": 30}
+
+
+def in_period(scheduled_at: str, days, now: datetime | None = None) -> bool:
+    """Проверяет, что сессия начнётся не позже чем через days дней.
+
+    Args:
+        scheduled_at: Дата сессии в формате БД «ГГГГ-ММ-ДД ЧЧ:ММ».
+        days: Число дней вперёд или None — подходит любая дата.
+        now: Текущий момент (для тестов), по умолчанию — сейчас.
+
+    Returns:
+        True, если сессия попадает в выбранный период.
+    """
+    if days is None:
+        return True
+    now = now or datetime.now()
+    start = datetime.strptime(scheduled_at, DATETIME_FORMAT)
+    return (start - now).total_seconds() <= days * 24 * 3600
+
+
 def parse_datetime(date_text: str, time_text: str) -> str:
     """Проверяет дату и время из формы и переводит их в формат БД.
 

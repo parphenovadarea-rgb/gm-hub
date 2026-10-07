@@ -4,8 +4,9 @@
 заявки на них, его заметки и его база мира.
 """
 
+import re
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 
 from gm_hub.config import to_short, to_show
 from gm_hub.logic import characters, games, notes, signups
@@ -16,6 +17,7 @@ from gm_hub.ui.common import (
     GREEN_TEXT,
     PAGE,
     Banner,
+    FormGuard,
     MainFrame,
     card,
     field,
@@ -55,6 +57,11 @@ class GMFrame(MainFrame):
             ],
         )
 
+    def update_badges(self) -> None:
+        """Пишет на вкладке «Заявки» число заявок, ждущих решения."""
+        planned = games.list_games(self.app.conn, "PLANNED", self.app.user["id"])
+        self.set_badge(1, sum(game["pending"] for game in planned))
+
 
 class Tab(ttk.Frame):
     """Общая основа вкладки: серый фон и доступ к БД и пользователю."""
@@ -73,12 +80,16 @@ class Tab(ttk.Frame):
         """Пишет итоги вкладки в строку внизу окна."""
         self.master.master.set_status(text)
 
+    def can_leave(self) -> bool:
+        """На вкладке без формы уходить можно всегда."""
+        return True
+
     def my_games(self, status: str = "PLANNED"):
         """Возвращает сессии текущего Мастера с нужным статусом."""
         return games.list_games(self.app.conn, status, self.app.user["id"])
 
 
-class ScheduleTab(Tab):
+class ScheduleTab(FormGuard, Tab):
     """Вкладка «Расписание»: список сессий и форма сессии (макет 03)."""
 
     PERIODS = [
@@ -112,7 +123,7 @@ class ScheduleTab(Tab):
             top, text="Отменить сессию", style="Danger.TButton", command=self.on_cancel
         ).pack(side="right", padx=px(6))
         ttk.Button(
-            top, text="+ Новая сессия", style="Accent.TButton", command=self.clear_form
+            top, text="+ Новая сессия", style="Accent.TButton", command=self.on_new
         ).pack(side="right")
 
         self.table = RowTable(
@@ -157,7 +168,39 @@ class ScheduleTab(Tab):
         )
         self.save_button.pack(fill="x", pady=px((14, 0)))
         self.error = Banner(form, fill="x", pady=px((10, 0)), before=self.save_button)
+        # Enter в полях формы — «Опубликовать»/«Сохранить», Esc — новая сессия.
+        for entry in (
+            self.title_entry,
+            self.date_entry,
+            self.time_entry,
+            self.max_players,
+        ):
+            entry.bind("<Return>", lambda e: self.on_save())
+            entry.bind("<Escape>", lambda e: self.on_new())
+        self.description.text.bind("<Escape>", lambda e: self.on_new())
         self.clear_form()
+
+    def form_state(self):
+        """Значения полей формы — чтобы заметить несохранённые правки."""
+        return (
+            self.title_entry.get(),
+            get_text(self.description),
+            self.date_entry.get(),
+            self.time_entry.get(),
+            str(self.max_players.get()),
+        )
+
+    def discard(self):
+        """Отбрасывает правки: возвращает сохранённую сессию в форму."""
+        if self.game_id is None:
+            self.clear_form()
+        else:
+            self.load_game(self.game_id)
+
+    def on_new(self):
+        """Кнопка «+ Новая сессия» и Esc: пустая форма (с вопросом о правках)."""
+        if self.can_leave():
+            self.clear_form()
 
     def refresh(self):
         """Перечитывает сессии текущего Мастера из БД."""
@@ -215,9 +258,17 @@ class ScheduleTab(Tab):
         self.max_players.set(4)
         self.error.hide()
         self.refresh()
+        self.remember()
 
     def on_select(self, game_id):
-        """Загружает выбранную сессию в форму для изменения."""
+        """Загружает выбранную сессию в форму (спросив о несохранённых правках)."""
+        if game_id != self.game_id and not self.can_leave():
+            self.table.select(self.game_id, notify=False)
+            return
+        self.load_game(game_id)
+
+    def load_game(self, game_id):
+        """Загружает сессию в форму для изменения."""
         game = games.get_game(self.app.conn, game_id)
         self.game_id = game_id
         self.form.title_label.config(text="Изменение сессии")
@@ -232,6 +283,8 @@ class ScheduleTab(Tab):
         self.time_entry.insert(0, when[11:])
         self.max_players.set(game["max_players"])
         self.error.hide()
+        self.table.select(game_id, notify=False)
+        self.remember()
 
     def on_save(self):
         """Сохраняет сессию из формы; ошибку показывает в форме."""
@@ -490,6 +543,7 @@ class SignupsTab(Tab):
         """Подтверждает заявку."""
         signups.confirm_signup(self.app.conn, self.app.user, signup_id)
         self.load_signups()
+        self.master.master.update_badges()
 
     def on_reject(self, signup_id):
         """Отклоняет заявку; причину отказа можно указать (её увидит Игрок)."""
@@ -498,9 +552,10 @@ class SignupsTab(Tab):
             return
         signups.reject_signup(self.app.conn, self.app.user, signup_id, reason)
         self.load_signups()
+        self.master.master.update_badges()
 
 
-class GameNotesTab(Tab):
+class GameNotesTab(FormGuard, Tab):
     """Вкладка «Сюжетный блокнот»: заметка к выбранной сессии (макет 05)."""
 
     def __init__(self, parent, app):
@@ -530,8 +585,16 @@ class GameNotesTab(Tab):
             side="right"
         )
         ttk.Frame(right, style="Line.TFrame", height=1).pack(fill="x", pady=px(10))
-        self.team = ttk.Frame(right)
-        self.team.pack(fill="x", pady=px((0, 10)))
+        team_row = ttk.Frame(right)
+        team_row.pack(fill="x", pady=px((0, 10)))
+        self.team = ttk.Frame(team_row)
+        self.team.pack(side="left", fill="x", expand=True)
+        ttk.Button(
+            team_row,
+            text="Сохранить список",
+            style="Small.TButton",
+            command=self.on_export,
+        ).pack(side="right")
         self.editor = make_text(right, height=14, headings=True)
         self.editor.pack(fill="both", expand=True)
         bottom = ttk.Frame(right)
@@ -550,6 +613,7 @@ class GameNotesTab(Tab):
             style="Danger.TButton",
             command=self.on_delete,
         ).pack(side="right")
+        self.remember()
 
     def refresh(self):
         """Перечитывает список своих предстоящих и прошедших сессий."""
@@ -569,10 +633,43 @@ class GameNotesTab(Tab):
         if self.game_id in self.table.rows:
             self.table.select(self.game_id, notify=False)
 
+    def form_state(self):
+        """Текст заметки — чтобы заметить несохранённые правки."""
+        return get_text(self.editor)
+
+    def discard(self):
+        """Отбрасывает правки заметки."""
+        self.reload()
+
     def on_select(self, game_id):
         """Запоминает выбранную сессию и показывает её заметку (сценарий 11)."""
+        if game_id != self.game_id and not self.can_leave():
+            self.table.select(self.game_id, notify=False)
+            return
         self.game_id = game_id
         self.reload()
+
+    def on_export(self):
+        """Сохраняет состав сессии в файл CSV, чтобы распечатать перед игрой."""
+        if self.game_id is None:
+            raise ValidationError("Сессия", "Выберите сессию в списке слева.")
+        game = games.get_game(self.app.conn, self.game_id)
+        safe_title = re.sub(r'[\\/:*?"<>|]', "", game["title"])
+        path = filedialog.asksaveasfilename(
+            parent=self,
+            title="Список участников",
+            initialfile=f"Участники — {safe_title}.csv",
+            defaultextension=".csv",
+            filetypes=[("Таблица CSV (Excel)", "*.csv")],
+        )
+        if not path:
+            return
+        count = signups.export_participants(
+            self.app.conn, self.app.user, self.game_id, path
+        )
+        messagebox.showinfo(
+            "Список участников", f"Сохранено участников: {count}\n{path}", parent=self
+        )
 
     def reload(self):
         """Показывает заметку и состав выбранной сессии."""
@@ -604,13 +701,17 @@ class GameNotesTab(Tab):
         set_text(self.editor, note["content"] if note else "")
         changed = to_show(note["updated_at"]) if note else "—"
         self.updated.config(text=f"Изменено автоматически: {changed}")
+        self.remember()
 
     def on_save(self):
         """Сохраняет заметку выбранной сессии."""
+        if self.game_id is None:
+            raise ValidationError("Сессия", "Выберите сессию в списке слева.")
         updated_at = notes.save_game_note(
             self.app.conn, self.app.user, self.game_id, get_text(self.editor)
         )
         self.updated.config(text=f"Изменено автоматически: {to_show(updated_at)}")
+        self.remember()
         self.refresh()
 
     def on_delete(self):
@@ -621,10 +722,11 @@ class GameNotesTab(Tab):
             notes.delete_game_note(self.app.conn, self.app.user, self.game_id)
             set_text(self.editor, "")
             self.updated.config(text="Изменено автоматически: —")
+            self.remember()
             self.refresh()
 
 
-class WorldTab(Tab):
+class WorldTab(FormGuard, Tab):
     """Вкладка «База мира»: лор, NPC и локации (макет 06)."""
 
     FILTERS = [("Все", ""), ("Лор", "LORE"), ("NPC", "NPC"), ("Локации", "LOCATION")]
@@ -653,7 +755,7 @@ class WorldTab(Tab):
         self.search.pack(side="left", padx=px(6))
         self.search.bind("<KeyRelease>", lambda e: self.refresh())
         ttk.Button(
-            top, text="+ Новая запись", style="Accent.TButton", command=self.clear_form
+            top, text="+ Новая запись", style="Accent.TButton", command=self.on_new
         ).pack(side="right")
 
         body = ttk.Frame(self, style="Page.TFrame")
@@ -732,9 +834,33 @@ class WorldTab(Tab):
         self.error.hide()
         self.refresh()
         self.title_entry.focus()
+        self.remember()
+
+    def form_state(self):
+        """Значения полей записи — чтобы заметить несохранённые правки."""
+        return (self.title_entry.get(), self.category.get(), get_text(self.content))
+
+    def discard(self):
+        """Отбрасывает правки записи."""
+        if self.note_id is None:
+            self.clear_form()
+        else:
+            self.load_note(self.note_id)
+
+    def on_new(self):
+        """Кнопка «+ Новая запись»: пустая форма (с вопросом о правках)."""
+        if self.can_leave():
+            self.clear_form()
 
     def on_select(self, note_id):
-        """Загружает выбранную запись в форму."""
+        """Загружает выбранную запись (спросив о несохранённых правках)."""
+        if note_id != self.note_id and not self.can_leave():
+            self.table.select(self.note_id, notify=False)
+            return
+        self.load_note(note_id)
+
+    def load_note(self, note_id):
+        """Загружает запись в форму."""
         row = notes.get_world_note(self.app.conn, self.app.user, note_id)
         self.note_id = note_id
         self.title_entry.delete(0, "end")
@@ -743,6 +869,8 @@ class WorldTab(Tab):
         set_text(self.content, row["content"])
         self.updated.config(text=f"Изменено: {to_show(row['updated_at'])}")
         self.error.hide()
+        self.table.select(note_id, notify=False)
+        self.remember()
 
     def on_save(self):
         """Сохраняет запись из формы; ошибку показывает в форме."""
@@ -760,6 +888,7 @@ class WorldTab(Tab):
             self.error.show(error.message)
             return
         self.error.hide()
+        self.remember()
         self.refresh()
 
     def on_delete(self):

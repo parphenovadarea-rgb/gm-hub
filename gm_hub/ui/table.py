@@ -371,15 +371,17 @@ class RowTable(ttk.Frame):
         """Выбирает строку и подсвечивает её.
 
         Args:
-            row_id: id строки.
+            row_id: id строки; None — снять выделение.
             notify: Вызывать ли on_select.
         """
-        if row_id not in self.rows:
+        if row_id is not None and row_id not in self.rows:
             return
         if self.selected in self.rows:
             old = self.rows[self.selected]
             self._paint_row(old, old["bg"])
         self.selected = row_id
+        if row_id is None:
+            return
         self._paint_row(self.rows[row_id], SELECTED_ROW, bar=ACCENT)
         if notify and self.on_select:
             self.on_select(row_id)
