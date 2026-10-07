@@ -9,7 +9,7 @@ from tkinter import messagebox
 from gm_hub.logic import auth
 from gm_hub.logic.errors import AccessError, ValidationError
 from gm_hub.ui.auth_windows import LoginFrame, RegisterFrame
-from gm_hub.ui.common import ScrollArea, px, setup_style
+from gm_hub.ui.common import ScrollArea, fix_corners, px, setup_style
 from gm_hub.ui.gm_window import GMFrame
 from gm_hub.ui.player_window import PlayerFrame
 from gm_hub.ui.profile_window import ProfileWindow
@@ -61,7 +61,9 @@ class App(tk.Tk):
         else:
             self.show_register()
 
-    def show(self, screen_class, title: str, size: str, min_size: str) -> None:
+    def show(
+        self, screen_class, title: str, size: str, min_size: str, card_width=None
+    ) -> None:
         """Заменяет текущий экран новым.
 
         Args:
@@ -70,24 +72,34 @@ class App(tk.Tk):
             size: Размер окна при открытии, например «1280x760».
             min_size: Размер, меньше которого экран не сжимается: если окно
                 уменьшить сильнее, появляются ползунки.
+            card_width: Для входа и регистрации — ширина карточки с формой.
+                Карточка стоит по центру окна и не растягивается, даже если
+                окно развернуть на весь экран. None — экран на всё окно.
         """
         if self.screen is not None:
             self.screen.destroy()
         self.title(f"Game Master Hub — {title}")
         width, height = (int(n) for n in size.split("x"))
         self.geometry(f"{px(width)}x{px(height)}")
+        page = self.scroll.page
+        page.configure(style="Page.TFrame" if card_width else "TFrame")
         self.screen = screen_class(self)
-        self.screen.pack(fill="both", expand=True)
+        if card_width:
+            self.screen.configure(style="Card.TFrame")
+            self.screen.place(relx=0.5, rely=0.5, anchor="center", width=px(card_width))
+            fix_corners(page)  # уголки карточки — цвета фона страницы
+        else:
+            self.screen.pack(fill="both", expand=True)
         min_width, min_height = (int(n) for n in min_size.split("x"))
         self.scroll.set_min_size(px(min_width), px(min_height))
 
     def show_login(self) -> None:
         """Открывает окно входа."""
-        self.show(LoginFrame, "Вход", "500x470", "460x440")
+        self.show(LoginFrame, "Вход", "520x500", "480x460", card_width=440)
 
     def show_register(self) -> None:
         """Открывает окно регистрации."""
-        self.show(RegisterFrame, "Регистрация", "540x620", "500x590")
+        self.show(RegisterFrame, "Регистрация", "580x680", "540x640", card_width=500)
 
     def open_main(self, user) -> None:
         """Открывает окно по роли пользователя (п. 4.2.1 ТЗ).
