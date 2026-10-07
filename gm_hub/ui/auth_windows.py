@@ -21,9 +21,9 @@ class LoginFrame(ttk.Frame):
         Args:
             app: Приложение (нужны app.conn и app.open_main).
         """
-        super().__init__(app.scroll.page, padding=px((40, 30)))
+        super().__init__(app.scroll.page, padding=px((36, 24)))
         self.app = app
-        ttk.Label(self, text="Вход", style="Title.TLabel").pack(pady=px((30, 16)))
+        ttk.Label(self, text="Вход", style="Title.TLabel").pack(pady=px((4, 12)))
 
         field(self, "Логин")
         self.login = ttk.Entry(self)
@@ -65,7 +65,7 @@ class RegisterFrame(ttk.Frame):
         Args:
             app: Приложение (нужны app.conn, app.show_login, app.open_main).
         """
-        super().__init__(app.scroll.page, padding=px((40, 20)))
+        super().__init__(app.scroll.page, padding=px((36, 20)))
         self.app = app
         ttk.Label(self, text="Регистрация", style="Title.TLabel").pack(pady=px((10, 2)))
         ttk.Label(
