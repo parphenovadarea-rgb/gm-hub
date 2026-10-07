@@ -235,9 +235,12 @@ class ShowcaseTab(Tab):
         master = next(m for m in auth.list_masters(conn) if m["id"] == self.master_id)
         self.master_label.config(text=f"Сессии Мастера: {master['full_name']}")
 
-        my_status = {}  # id сессии -> статусы моих заявок
+        my_status = {}  # id сессии -> статусы моих заявок, главный — первым
+        order = ["CONFIRMED", "PENDING", "REJECTED"]
         for row in signups.list_for_player(conn, user):
             my_status.setdefault(row["game_id"], []).append(row["status"])
+        for statuses in my_status.values():
+            statuses.sort(key=order.index)
 
         days = games.PERIOD_DAYS[self.period.get()]
         if days or self.only_free.get():
