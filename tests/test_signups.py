@@ -50,6 +50,39 @@ class SignupsTest(unittest.TestCase):
             signups.create_signup(self.conn, self.p1, self.game, self.char1)
         self.assertEqual(len(signups.list_for_game(self.conn, self.game)), 1)
 
+    def test_one_player_one_character(self):
+        """Второй персонаж того же Игрока не записывается на ту же сессию."""
+        signups.create_signup(self.conn, self.p1, self.game, self.char1)
+        other = characters.save_character(self.conn, self.p1, "Корвин", "", "", 2, "")
+        with self.assertRaises(ValidationError):
+            signups.create_signup(self.conn, self.p1, self.game, other)
+        self.assertEqual(len(signups.list_for_game(self.conn, self.game)), 1)
+
+    def test_after_reject_other_character_allowed(self):
+        """После отказа Игрок может записаться другим персонажем."""
+        first = signups.create_signup(self.conn, self.p1, self.game, self.char1)
+        signups.reject_signup(self.conn, self.gm, first)
+        other = characters.save_character(self.conn, self.p1, "Корвин", "", "", 2, "")
+        second = signups.create_signup(self.conn, self.p1, self.game, other)
+        self.assertEqual(self.status(second), "PENDING")
+
+    def test_confirm_second_character_of_player(self):
+        """Мастер не подтвердит второго персонажа Игрока на ту же сессию."""
+        self.conn.execute("UPDATE Games SET max_players = 5")
+        first = signups.create_signup(self.conn, self.p1, self.game, self.char1)
+        other = characters.save_character(self.conn, self.p1, "Корвин", "", "", 2, "")
+        # заявка, поданная до появления правила (в старой БД), — сразу в таблицу
+        with self.conn:
+            cur = self.conn.execute(
+                "INSERT INTO Game_Signups (game_id, character_id, status, created_at) "
+                "VALUES (?, ?, 'PENDING', '2026-01-01 10:00')",
+                (self.game, other),
+            )
+        signups.confirm_signup(self.conn, self.gm, first)
+        with self.assertRaises(ValidationError):
+            signups.confirm_signup(self.conn, self.gm, cur.lastrowid)
+        self.assertEqual(self.status(cur.lastrowid), "PENDING")
+
     def test_08_confirm_over_limit(self):
         """Сценарий 8: подтвердить сверх лимита мест нельзя."""
         first = signups.create_signup(self.conn, self.p1, self.game, self.char1)
