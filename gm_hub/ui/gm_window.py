@@ -26,6 +26,7 @@ from gm_hub.ui.common import (
     set_text,
     short_name,
 )
+from gm_hub.ui.mask import DATE_MASK, TIME_MASK, MaskedEntry
 from gm_hub.ui.table import STATUS_PILL, Pill, RowTable
 
 
@@ -138,11 +139,12 @@ class ScheduleTab(Tab):
         date_box, time_box = ttk.Frame(row), ttk.Frame(row)
         date_box.pack(side="left", fill="x", expand=True, padx=px((0, 8)))
         time_box.pack(side="left", fill="x", expand=True)
+        # вводятся только цифры, точки и двоеточие ставятся сами
         field(date_box, "Дата * (ДД.ММ.ГГГГ)")
-        self.date_entry = ttk.Entry(date_box, width=14)
+        self.date_entry = MaskedEntry(date_box, DATE_MASK, width=14)
         self.date_entry.pack(fill="x")
         field(time_box, "Время * (ЧЧ:ММ)")
-        self.time_entry = ttk.Entry(time_box, width=8)
+        self.time_entry = MaskedEntry(time_box, TIME_MASK, width=8)
         self.time_entry.pack(fill="x")
         field(form, "Лимит мест *")
         self.max_players = ttk.Spinbox(form, from_=1, to=50, width=8)
