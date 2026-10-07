@@ -65,6 +65,16 @@ def create_signup(conn, user, game_id, character_id, comment="") -> int:
             "Персонаж", "Этот персонаж уже подавал заявку на эту сессию."
         )
 
+    # один Игрок — одна активная заявка на сессию, даже с разными персонажами
+    active = player_signup(conn, game_id, user["id"], ("PENDING", "CONFIRMED"))
+    if active:
+        raise ValidationError(
+            "Персонаж",
+            f"У вас уже есть заявка на эту сессию (персонаж "
+            f"{active['character_name']}). Чтобы записаться другим персонажем, "
+            "сначала отзовите её в разделе «Мои записи».",
+        )
+
     with conn:
         cur = conn.execute(
             "INSERT INTO Game_Signups (game_id, character_id, status, comment, "
@@ -72,6 +82,26 @@ def create_signup(conn, user, game_id, character_id, comment="") -> int:
             (game_id, character_id, comment.strip(), now_str()),
         )
     return cur.lastrowid
+
+
+def player_signup(conn, game_id, player_id, statuses):
+    """Ищет заявку Игрока на сессию с одним из указанных статусов.
+
+    Args:
+        conn: Подключение к БД.
+        game_id: id сессии.
+        player_id: id Игрока (владельца персонажей).
+        statuses: Подходящие статусы, например ("CONFIRMED",).
+
+    Returns:
+        Строка заявки (с именем персонажа) или None.
+    """
+    marks = ", ".join("?" * len(statuses))
+    return conn.execute(
+        SIGNUPS_QUERY
+        + f" WHERE s.game_id = ? AND c.user_id = ? AND s.status IN ({marks})",
+        (game_id, player_id, *statuses),
+    ).fetchone()
 
 
 def withdraw_signup(conn, user, signup_id) -> None:
@@ -154,6 +184,17 @@ def confirm_signup(conn, user, signup_id) -> None:
         if signup is None or signup["status"] != "PENDING":
             raise ValidationError("Заявка", "Подтвердить можно только новую заявку.")
         game = check_owner(conn, user, signup["game_id"])
+        player_id = conn.execute(
+            "SELECT user_id FROM Characters WHERE id = ?", (signup["character_id"],)
+        ).fetchone()["user_id"]
+        other = player_signup(conn, signup["game_id"], player_id, ("CONFIRMED",))
+        if other:
+            raise ValidationError(
+                "Заявка",
+                f"Подтвердить нельзя: у игрока {other['player_name']} уже "
+                f"подтверждена заявка на эту сессию (персонаж "
+                f"{other['character_name']}). Один игрок — один персонаж в сессии.",
+            )
         if free_seats(game["max_players"], game["confirmed"]) <= 0:
             raise ValidationError(
                 "Заявка",
