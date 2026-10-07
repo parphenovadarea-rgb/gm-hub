@@ -47,7 +47,7 @@ LIGHT = {
 
 DARK = {
     "accent": "#3f8f55",
-    "accent_hover": "#4aa463",
+    "accent_hover": "#347546",  # при наведении темнее, как в светлой теме
     "accent_soft": "#2e5a3c",
     "accent_disabled": "#26372d",
     "accent_disabled_text": "#6f8a77",
