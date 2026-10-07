@@ -240,6 +240,70 @@ def close_past_games(conn) -> None:
         )
 
 
+def save_summary(conn, user, game_id, text) -> None:
+    """Сохраняет итоги прошедшей сессии — их увидят Игроки в «Мои записи».
+
+    Args:
+        conn: Подключение к БД.
+        user: Текущий пользователь (Мастер).
+        game_id: id сессии.
+        text: Текст итогов.
+
+    Raises:
+        AccessError: Если сессия чужая.
+        ValidationError: Если сессия ещё не прошла.
+    """
+    game = check_owner(conn, user, game_id)
+    if game["status"] != "CLOSED":
+        raise ValidationError(
+            "Итоги", "Итоги можно написать только к прошедшей сессии."
+        )
+    with conn:
+        conn.execute(
+            "UPDATE Games SET summary = ? WHERE id = ?",
+            (text.strip() or None, game_id),
+        )
+
+
+def master_stats(conn, user) -> dict:
+    """Считает статистику Мастера для вкладки «Статистика».
+
+    Args:
+        conn: Подключение к БД.
+        user: Текущий пользователь (Мастер).
+
+    Returns:
+        Словарь: planned, closed, cancelled — число сессий по статусам;
+        fill — средняя заполняемость прошедших сессий в процентах (или None);
+        players — до 5 самых активных Игроков: (ФИО, подтверждённых заявок).
+    """
+    check_gm(user)
+    closed = list_games(conn, "CLOSED", user["id"])
+    stats = {
+        "planned": len(list_games(conn, "PLANNED", user["id"])),
+        "closed": len(closed),
+        "cancelled": len(list_games(conn, "CANCELLED", user["id"])),
+        "fill": None,
+    }
+    if closed:
+        percents = [g["confirmed"] * 100 / g["max_players"] for g in closed]
+        stats["fill"] = round(sum(percents) / len(percents))
+    stats["players"] = [
+        (row["full_name"], row["games"])
+        for row in conn.execute(
+            "SELECT u.full_name, COUNT(*) AS games FROM Game_Signups s "
+            "JOIN Games g ON g.id = s.game_id "
+            "JOIN Characters c ON c.id = s.character_id "
+            "JOIN Users u ON u.id = c.user_id "
+            "WHERE g.gm_id = ? AND g.status != 'CANCELLED' "
+            "AND s.status = 'CONFIRMED' "
+            "GROUP BY u.id ORDER BY games DESC, u.full_name LIMIT 5",
+            (user["id"],),
+        )
+    ]
+    return stats
+
+
 def get_game(conn, game_id):
     """Возвращает одну сессию с числом заявок.
 

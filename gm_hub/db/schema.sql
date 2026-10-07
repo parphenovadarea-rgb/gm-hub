@@ -30,7 +30,9 @@ CREATE TABLE IF NOT EXISTS Games (
     scheduled_at TEXT    NOT NULL,
     max_players  INTEGER NOT NULL CHECK (max_players > 0),
     status       TEXT    NOT NULL DEFAULT 'PLANNED'
-                         CHECK (status IN ('PLANNED', 'CLOSED', 'CANCELLED'))
+                         CHECK (status IN ('PLANNED', 'CLOSED', 'CANCELLED')),
+    summary      TEXT,  -- итоги прошедшей сессии, их видят Игроки
+    levels_given INTEGER NOT NULL DEFAULT 0  -- 1 — уровни участникам уже повышены
 );
 
 CREATE TABLE IF NOT EXISTS Game_Signups (

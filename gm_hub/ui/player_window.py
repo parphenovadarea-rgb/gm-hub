@@ -105,6 +105,8 @@ class ShowcaseTab(Tab):
         # Слева — выбор Мастера с поиском по имени.
         left = ttk.Frame(self, style="Page.TFrame")
         left.pack(side="left", fill="y", padx=px((0, 12)))
+        # Над всем — напоминание о ближайшей подтверждённой игре.
+        self.reminder = Banner(self, fill="x", pady=px((0, 12)), before=left)
         ttk.Label(left, text="Мастер", style="PageBold.TLabel").pack(anchor="w")
         ttk.Label(left, text="⌕ найти по имени", style="Page.TLabel").pack(anchor="w")
         self.search = ttk.Entry(left, width=16)
@@ -192,6 +194,16 @@ class ShowcaseTab(Tab):
             ]
         )
         self.error.hide()
+        game = signups.next_game(self.app.conn, self.app.user)
+        if game:
+            self.reminder.show(
+                f"Скоро игра: «{game['game_title']}» — "
+                f"{to_show(game['scheduled_at'])}, Мастер {game['gm_name']}, "
+                f"персонаж {game['character_name']}.",
+                "ok",
+            )
+        else:
+            self.reminder.hide()
 
     def load_masters(self):
         """Показывает Мастеров, подходящих под поиск по имени."""
@@ -293,9 +305,14 @@ class ShowcaseTab(Tab):
         game = games.get_game(self.app.conn, game_id)
         free = games.free_seats(game["max_players"], game["confirmed"])
         self.info_title.config(text=game["title"])
-        self.info_when.config(
-            text=f"{to_show(game['scheduled_at'])} · "
+        seats = (
             f"свободно {free} из {game['max_players']}"
+            if free > 0
+            else "мест нет — заявка встанет в очередь"
+        )
+        self.info_when.config(text=f"{to_show(game['scheduled_at'])} · {seats}")
+        self.send_button.config(
+            text="Отправить заявку" if free > 0 else "Встать в очередь"
         )
         self.error.hide()
 
@@ -370,6 +387,7 @@ class MySignupsTab(Tab):
         now = now_str()
         # Решения, принятые после прошлого просмотра, отмечаются «НОВОЕ».
         seen = signups.seen_at(self.app.conn, self.app.user) or ""
+        queues = {}  # id сессии -> номера заявок в листе ожидания
         for row in rows:
             upcoming = row["scheduled_at"] >= now
             if upcoming != (self.period.get() == "future"):
@@ -377,20 +395,30 @@ class MySignupsTab(Tab):
             decision = [("muted", to_short(row["decided_at"]))]
             if row["decided_at"] and row["decided_at"] > seen:
                 decision.append(("pill", "новое", "warn"))
+            title = [
+                ("bold", row["game_title"]),
+                ("muted", f"Мастер: {row['gm_name']}"),
+            ]
+            # Итоги прошедшей игры Мастер пишет для её участников.
+            if row["game_summary"] and row["status"] == "CONFIRMED":
+                title.append(("muted", f"Итоги: {row['game_summary']}"))
+            status = status_cell(row)
+            if row["status"] == "PENDING":
+                if row["game_id"] not in queues:
+                    queues[row["game_id"]] = signups.queue_positions(
+                        self.app.conn, row["game_id"]
+                    )
+                number = queues[row["game_id"]].get(row["id"])
+                if number:
+                    status[1].append(("muted", f"в очереди: №{number}"))
             self.table.add(
                 row["id"],
                 [
-                    (
-                        "stack",
-                        [
-                            ("bold", row["game_title"]),
-                            ("muted", f"Мастер: {row['gm_name']}"),
-                        ],
-                    ),
+                    ("stack", title),
                     to_show(row["scheduled_at"]),
                     row["character_name"],
                     ("muted", row["comment"] or "—"),
-                    status_cell(row),
+                    status,
                     ("stack", decision),
                 ],
                 sort=[
@@ -572,6 +600,11 @@ class CharactersTab(FormGuard, Tab):
 
     def on_save(self):
         """Сохраняет карточку персонажа; ошибку показывает в форме."""
+        if self.character_id is not None:
+            # уровень мог повысить Мастер, пока карточка была открыта
+            self.level = characters.get_character(self.app.conn, self.character_id)[
+                "level"
+            ]
         try:
             self.character_id = characters.save_character(
                 self.app.conn,

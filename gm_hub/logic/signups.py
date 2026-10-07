@@ -1,8 +1,9 @@
 """Подсистема «Запись»: заявки Игроков на сессии (п. 4.2.3 ТЗ)."""
 
 import csv
+from datetime import datetime, timedelta
 
-from gm_hub.config import now_str, to_show
+from gm_hub.config import DATETIME_FORMAT, now_str, to_show
 from gm_hub.logic.auth import check_gm
 from gm_hub.logic.errors import AccessError, ValidationError
 from gm_hub.logic.games import check_owner, free_seats, get_game
@@ -16,6 +17,7 @@ STATUS_NAMES = {
 # Общая часть запроса: заявка + сессия + персонаж + игрок.
 SIGNUPS_QUERY = """
     SELECT s.*, g.title AS game_title, g.scheduled_at, g.status AS game_status,
+        g.summary AS game_summary,
         c.name AS character_name, c.class AS character_class,
         c.level AS character_level, u.full_name AS player_name,
         (SELECT full_name FROM Users WHERE id = g.gm_id) AS gm_name
@@ -319,3 +321,53 @@ def export_participants(conn, user, game_id, path) -> int:
         for row in rows:
             writer.writerow([value if value is not None else "" for value in row])
     return len(rows)
+
+
+def queue_positions(conn, game_id) -> dict:
+    """Лист ожидания: места заняты — новые заявки стоят в очереди.
+
+    Очередь — заявки «на рассмотрении» в порядке подачи. Когда место
+    освободится (Игрок отзовёт заявку или Мастер увеличит лимит), Мастер
+    подтверждает первую заявку в очереди.
+
+    Args:
+        conn: Подключение к БД.
+        game_id: id сессии.
+
+    Returns:
+        Словарь {id заявки: номер в очереди}; пустой, если места есть.
+    """
+    game = get_game(conn, game_id)
+    if game is None or free_seats(game["max_players"], game["confirmed"]) > 0:
+        return {}
+    rows = conn.execute(
+        "SELECT id FROM Game_Signups WHERE game_id = ? AND status = 'PENDING' "
+        "ORDER BY created_at, id",
+        (game_id,),
+    ).fetchall()
+    return {row["id"]: number for number, row in enumerate(rows, start=1)}
+
+
+def next_game(conn, user, days: int = 3):
+    """Ближайшая подтверждённая игра Игрока в ближайшие days дней.
+
+    Args:
+        conn: Подключение к БД.
+        user: Текущий пользователь (Игрок).
+        days: Сколько дней вперёд смотреть.
+
+    Returns:
+        Строка заявки (сессия, дата, персонаж) или None.
+    """
+    now = datetime.now()
+    rows = conn.execute(
+        SIGNUPS_QUERY + " WHERE c.user_id = ? AND s.status = 'CONFIRMED' "
+        "AND g.status = 'PLANNED' AND g.scheduled_at BETWEEN ? AND ? "
+        "ORDER BY g.scheduled_at",
+        (
+            user["id"],
+            now.strftime(DATETIME_FORMAT),
+            (now + timedelta(days=days)).strftime(DATETIME_FORMAT),
+        ),
+    ).fetchall()
+    return rows[0] if rows else None
