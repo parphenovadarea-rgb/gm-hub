@@ -79,6 +79,32 @@ def delete_game_note(conn, user, game_id) -> None:
         conn.execute("DELETE FROM Game_Notes WHERE game_id = ?", (game_id,))
 
 
+def search_game_notes(conn, user, query: str) -> set:
+    """Ищет сессии Мастера, в заметке или названии которых есть текст.
+
+    Args:
+        conn: Подключение к БД.
+        user: Текущий пользователь (Мастер).
+        query: Искомый текст (без учёта регистра).
+
+    Returns:
+        Множество id подходящих сессий.
+    """
+    check_gm(user)
+    rows = conn.execute(
+        "SELECT g.id, g.title, n.content FROM Games g "
+        "LEFT JOIN Game_Notes n ON n.game_id = g.id WHERE g.gm_id = ?",
+        (user["id"],),
+    ).fetchall()
+    # LIKE в SQLite не понимает регистр русских букв, поэтому ищем в Python.
+    query = query.strip().lower()
+    return {
+        row["id"]
+        for row in rows
+        if query in row["title"].lower() or query in (row["content"] or "").lower()
+    }
+
+
 def list_world_notes(conn, user, category=None, search=""):
     """Возвращает записи базы мира текущего Мастера.
 

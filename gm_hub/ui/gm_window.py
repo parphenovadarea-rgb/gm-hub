@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from gm_hub.config import to_short, to_show
-from gm_hub.logic import characters, games, notes, signups
+from gm_hub.logic import characters, dice, games, notes, signups
 from gm_hub.logic.errors import ValidationError
 from gm_hub.ui.common import (
     px,
@@ -54,6 +54,7 @@ class GMFrame(MainFrame):
                 ("Заявки", SignupsTab),
                 ("Сюжетный блокнот", GameNotesTab),
                 ("База мира", WorldTab),
+                ("Статистика", StatsTab),
             ],
         )
 
@@ -117,11 +118,14 @@ class ScheduleTab(FormGuard, Tab):
         self.period = tk.StringVar(value="PLANNED")
         segmented(top, self.PERIODS, self.period, self.refresh).pack(side="left")
         ttk.Button(
-            top, text="Удалить", style="Danger.TButton", command=self.on_delete
+            top, text="Удалить", style="Danger.TButton", width=0, command=self.on_delete
         ).pack(side="right")
         ttk.Button(
             top, text="Отменить сессию", style="Danger.TButton", command=self.on_cancel
         ).pack(side="right", padx=px(6))
+        ttk.Button(top, text="Копировать", width=0, command=self.on_copy).pack(
+            side="right", padx=px((0, 6))
+        )
         ttk.Button(
             top, text="+ Новая сессия", style="Accent.TButton", command=self.on_new
         ).pack(side="right")
@@ -201,6 +205,24 @@ class ScheduleTab(FormGuard, Tab):
         """Кнопка «+ Новая сессия» и Esc: пустая форма (с вопросом о правках)."""
         if self.can_leave():
             self.clear_form()
+
+    def on_copy(self):
+        """Кнопка «Копировать»: новая сессия по образцу выбранной.
+
+        Название, описание и лимит мест берутся из выбранной сессии (например,
+        «Шахта Эхо, ч. 4» → «ч. 5»), дату и время Мастер вводит заново.
+        """
+        game_id = self.selected_game()
+        if not self.can_leave():
+            return
+        game = games.get_game(self.app.conn, game_id)
+        self.clear_form()
+        self.form.title_label.config(text="Новая сессия (копия)")
+        self.title_entry.insert(0, game["title"])
+        set_text(self.description, game["description"])
+        self.max_players.set(game["max_players"])
+        self.remember()
+        self.date_entry.focus()
 
     def refresh(self):
         """Перечитывает сессии текущего Мастера из БД."""
@@ -457,6 +479,7 @@ class SignupsTab(Tab):
         status_filter = self.status_box.get()
         self.rows = {}
         has_pending = False
+        queue = signups.queue_positions(self.app.conn, game_id)  # лист ожидания
         for row in signups.list_for_game(self.app.conn, game_id):
             status = signups.STATUS_NAMES[row["status"]]
             if status_filter != "Все статусы" and status != status_filter:
@@ -505,7 +528,12 @@ class SignupsTab(Tab):
                     (
                         "stack",
                         [("pill", status, STATUS_PILL[row["status"]])]
-                        + ([("muted", row["reason"])] if row["reason"] else []),
+                        + ([("muted", row["reason"])] if row["reason"] else [])
+                        + (
+                            [("muted", f"№{queue[row['id']]} в очереди")]
+                            if row["id"] in queue
+                            else []
+                        ),
                     ),
                     actions,
                 ],
@@ -530,8 +558,9 @@ class SignupsTab(Tab):
         if free <= 0 and has_pending:
             self.blocked.show(
                 f"Подтвердить заявку нельзя. На «{game['title']}» уже подтверждено "
-                f"{game['confirmed']} заявок из {game['max_players']}. Отклоните "
-                "заявку или увеличьте лимит мест во вкладке «Расписание»."
+                f"{game['confirmed']} заявок из {game['max_players']}. Новые "
+                "заявки стоят в очереди: когда место освободится, подтвердите "
+                "первую. Можно также увеличить лимит мест во вкладке «Расписание»."
             )
 
     def on_select(self, signup_id):
@@ -568,8 +597,17 @@ class GameNotesTab(FormGuard, Tab):
         super().__init__(parent, app)
         self.game_id = None
 
-        self.table = RowTable(self, [("Сессии", 280, True)], on_select=self.on_select)
-        self.table.pack(side="left", fill="y")
+        # Слева — поиск по названию и тексту заметки и список сессий.
+        left = ttk.Frame(self, style="Page.TFrame")
+        left.pack(side="left", fill="y")
+        ttk.Label(left, text="⌕ Поиск по заметкам", style="Page.TLabel").pack(
+            anchor="w"
+        )
+        self.search = ttk.Entry(left)
+        self.search.pack(fill="x", pady=px((4, 10)))
+        self.search.bind("<KeyRelease>", lambda e: self.refresh())
+        self.table = RowTable(left, [("Сессии", 280, True)], on_select=self.on_select)
+        self.table.pack(fill="y", expand=True)
 
         right = card(self)
         right.master.pack(side="left", fill="both", expand=True, padx=px((16, 0)))
@@ -595,8 +633,48 @@ class GameNotesTab(FormGuard, Tab):
             style="Small.TButton",
             command=self.on_export,
         ).pack(side="right")
-        self.editor = make_text(right, height=14, headings=True)
+        self.editor = make_text(right, height=12, headings=True)
         self.editor.pack(fill="both", expand=True)
+
+        # Итоги прошедшей сессии (видны Игрокам) и повышение уровня участникам.
+        self.summary_box = ttk.Frame(right)
+        ttk.Label(
+            self.summary_box,
+            text="ИТОГИ ДЛЯ ИГРОКОВ — их увидят участники в «Мои записи»",
+            style="Small.TLabel",
+        ).pack(anchor="w", pady=px((10, 4)))
+        self.summary = make_text(self.summary_box, height=3)
+        self.summary.pack(fill="x")
+        level_row = ttk.Frame(self.summary_box)
+        level_row.pack(fill="x", pady=px((6, 0)))
+        ttk.Button(
+            level_row,
+            text="Повысить уровень участникам (+1)",
+            style="Small.TButton",
+            command=self.on_level_up,
+        ).pack(side="left")
+        self.levels_label = ttk.Label(level_row, style="Small.TLabel")
+        self.levels_label.pack(side="left", padx=px((10, 0)))
+
+        # Кубики: Мастеру не нужно искать их во время игры.
+        self.dice_row = ttk.Frame(right)
+        self.dice_row.pack(fill="x", pady=px((10, 0)))
+        ttk.Label(self.dice_row, text="Бросок:", style="Muted.TLabel").pack(side="left")
+        self.dice_count = ttk.Spinbox(self.dice_row, from_=1, to=10, width=3)
+        self.dice_count.set(1)
+        self.dice_count.pack(side="left", padx=px((6, 4)))
+        ttk.Label(self.dice_row, text="×", style="Muted.TLabel").pack(side="left")
+        for sides in dice.SIDES:
+            ttk.Button(
+                self.dice_row,
+                text=f"d{sides}",
+                style="Small.TButton",
+                width=0,
+                command=lambda s=sides: self.on_roll(s),
+            ).pack(side="left", padx=px((4, 0)))
+        self.dice_result = ttk.Label(self.dice_row, style="Bold.TLabel")
+        self.dice_result.pack(side="left", padx=px((12, 0)))
+
         bottom = ttk.Frame(right)
         bottom.pack(fill="x", pady=px((10, 0)))
         self.updated = ttk.Label(bottom, style="Small.TLabel")
@@ -618,8 +696,15 @@ class GameNotesTab(FormGuard, Tab):
     def refresh(self):
         """Перечитывает список своих предстоящих и прошедших сессий."""
         conn, user = self.app.conn, self.app.user
-        self.table.clear("Сессий нет.\nСоздайте сессию во вкладке «Расписание».")
+        query = self.search.get().strip()
+        found = notes.search_game_notes(conn, user, query) if query else None
+        if query:
+            self.table.clear("Ничего не найдено.\nИзмените текст поиска.")
+        else:
+            self.table.clear("Сессий нет.\nСоздайте сессию во вкладке «Расписание».")
         for game in self.my_games() + self.my_games("CLOSED"):
+            if found is not None and game["id"] not in found:
+                continue
             note = notes.get_game_note(conn, user, game["id"])
             if game["status"] == "CLOSED":
                 state = "прошла"
@@ -634,8 +719,38 @@ class GameNotesTab(FormGuard, Tab):
             self.table.select(self.game_id, notify=False)
 
     def form_state(self):
-        """Текст заметки — чтобы заметить несохранённые правки."""
-        return get_text(self.editor)
+        """Текст заметки и итогов — чтобы заметить несохранённые правки."""
+        return (get_text(self.editor), get_text(self.summary))
+
+    def on_roll(self, sides):
+        """Бросает кубики и показывает результат: «2d6: 3 + 5 = 8»."""
+        try:
+            count = int(self.dice_count.get())
+        except ValueError:
+            raise ValidationError("Кубик", "Число кубиков — целое число от 1 до 10.")
+        values = dice.roll(sides, count)
+        if count == 1:
+            text = f"d{sides}: {values[0]}"
+        else:
+            text = f"{count}d{sides}: {' + '.join(map(str, values))} = {sum(values)}"
+        self.dice_result.config(text=text)
+
+    def on_level_up(self):
+        """Повышает на 1 уровень всех подтверждённых участников прошедшей сессии."""
+        if not self.can_leave():
+            return
+        question = "Повысить на 1 уровень всех подтверждённых участников этой сессии?"
+        if not messagebox.askyesno("Повышение уровня", question, parent=self):
+            return
+        count = characters.level_up_after_game(
+            self.app.conn, self.app.user, self.game_id
+        )
+        messagebox.showinfo(
+            "Повышение уровня",
+            f"Новый уровень получили персонажей: {count}.",
+            parent=self,
+        )
+        self.reload()
 
     def discard(self):
         """Отбрасывает правки заметки."""
@@ -701,12 +816,26 @@ class GameNotesTab(FormGuard, Tab):
         set_text(self.editor, note["content"] if note else "")
         changed = to_show(note["updated_at"]) if note else "—"
         self.updated.config(text=f"Изменено автоматически: {changed}")
+        # Итоги и повышение уровня — только у прошедшей сессии.
+        if game["status"] == "CLOSED":
+            self.summary_box.pack(fill="x", before=self.dice_row)
+            set_text(self.summary, game["summary"] or "")
+            self.levels_label.config(
+                text="уровни за эту сессию уже повышены" if game["levels_given"] else ""
+            )
+        else:
+            self.summary_box.pack_forget()
+            set_text(self.summary, "")
         self.remember()
 
     def on_save(self):
-        """Сохраняет заметку выбранной сессии."""
+        """Сохраняет заметку и итоги (у прошедшей сессии) выбранной сессии."""
         if self.game_id is None:
             raise ValidationError("Сессия", "Выберите сессию в списке слева.")
+        if games.get_game(self.app.conn, self.game_id)["status"] == "CLOSED":
+            games.save_summary(
+                self.app.conn, self.app.user, self.game_id, get_text(self.summary)
+            )
         updated_at = notes.save_game_note(
             self.app.conn, self.app.user, self.game_id, get_text(self.editor)
         )
@@ -898,3 +1027,80 @@ class WorldTab(FormGuard, Tab):
         if messagebox.askyesno("База мира", "Удалить эту запись?"):
             notes.delete_world_note(self.app.conn, self.app.user, self.note_id)
             self.clear_form()
+
+
+class StatsTab(Tab):
+    """Вкладка «Статистика»: итоги работы Мастера."""
+
+    CARDS = [
+        ("planned", "предстоящих сессий"),
+        ("closed", "проведено сессий"),
+        ("cancelled", "отменено"),
+        ("fill", "средняя заполняемость"),
+    ]
+
+    def __init__(self, parent, app):
+        """Создаёт карточки с числами и две таблицы.
+
+        Args:
+            parent: Область вкладок.
+            app: Приложение.
+        """
+        super().__init__(parent, app)
+        numbers = ttk.Frame(self, style="Page.TFrame")
+        numbers.pack(fill="x")
+        self.values = {}
+        for index, (key, caption) in enumerate(self.CARDS):
+            box = card(numbers)
+            box.master.grid(
+                row=0, column=index, sticky="nsew", padx=px((0, 12)) if index < 3 else 0
+            )
+            self.values[key] = ttk.Label(box, font=("Georgia", 24, "bold"))
+            self.values[key].pack(anchor="w")
+            ttk.Label(box, text=caption, style="Muted.TLabel").pack(anchor="w")
+        numbers.columnconfigure((0, 1, 2, 3), weight=1, uniform="card")
+
+        tables = ttk.Frame(self, style="Page.TFrame")
+        tables.pack(fill="both", expand=True, pady=px((16, 0)))
+        left = ttk.Frame(tables, style="Page.TFrame")
+        left.pack(side="left", fill="both", expand=True)
+        ttk.Label(left, text="Самые активные игроки", style="PageBold.TLabel").pack(
+            anchor="w", pady=px((0, 6))
+        )
+        self.players = RowTable(
+            left, [("Игрок", 260, True), ("Подтверждено", 130, False)]
+        )
+        self.players.pack(fill="both", expand=True)
+        right = ttk.Frame(tables, style="Page.TFrame")
+        right.pack(side="left", fill="both", expand=True, padx=px((16, 0)))
+        ttk.Label(right, text="Прошедшие сессии", style="PageBold.TLabel").pack(
+            anchor="w", pady=px((0, 6))
+        )
+        self.past = RowTable(
+            right,
+            [("Сессия", 240, True), ("Дата", 150, False), ("Участники", 130, False)],
+        )
+        self.past.pack(fill="both", expand=True)
+
+    def refresh(self):
+        """Пересчитывает статистику текущего Мастера."""
+        stats = games.master_stats(self.app.conn, self.app.user)
+        for key, _ in self.CARDS:
+            value = stats[key]
+            if key == "fill":
+                value = "—" if value is None else f"{value} %"
+            self.values[key].config(text=value)
+        self.players.clear("Подтверждённых заявок пока нет.")
+        for number, (name, count) in enumerate(stats["players"], start=1):
+            self.players.add(number, [("bold", name), count])
+        self.past.clear("Прошедших сессий пока нет.")
+        for game in games.list_games(self.app.conn, "CLOSED", self.app.user["id"]):
+            self.past.add(
+                game["id"],
+                [
+                    ("bold", game["title"]),
+                    to_show(game["scheduled_at"]),
+                    f"{game['confirmed']} из {game['max_players']}",
+                ],
+            )
+        self.status("Статистика считается по всем вашим сессиям")

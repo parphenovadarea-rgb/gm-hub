@@ -36,6 +36,8 @@ def init_db(conn: sqlite3.Connection) -> None:
     add_column(conn, "World_Notes", "gm_id", "INTEGER REFERENCES Users (id)")
     add_column(conn, "Game_Signups", "reason", "TEXT")
     add_column(conn, "Users", "signups_seen_at", "TEXT")
+    add_column(conn, "Games", "summary", "TEXT")
+    add_column(conn, "Games", "levels_given", "INTEGER NOT NULL DEFAULT 0")
 
 
 def add_column(conn: sqlite3.Connection, table: str, column: str, sql_type: str):

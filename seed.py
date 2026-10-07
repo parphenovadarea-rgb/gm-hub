@@ -205,7 +205,7 @@ def main(path=DB_PATH) -> None:
     # поэтому для демонстрации она добавляется напрямую.
     past = (datetime.now() - timedelta(days=9)).replace(hour=18, minute=0)
     with conn:
-        conn.execute(
+        cur = conn.execute(
             "INSERT INTO Games (gm_id, title, description, scheduled_at, "
             "max_players, status) VALUES (?, ?, ?, ?, ?, 'CLOSED')",
             (
@@ -216,6 +216,26 @@ def main(path=DB_PATH) -> None:
                 5,
             ),
         )
+        past_id = cur.lastrowid
+        # участники прошедшей игры — для итогов, статистики и повышения уровня
+        for name in ("Торбек", "Эйлин", "Грум", "Миралла", "Пип"):
+            conn.execute(
+                "INSERT INTO Game_Signups (game_id, character_id, status, "
+                "created_at, decided_at) VALUES (?, ?, 'CONFIRMED', ?, ?)",
+                (
+                    past_id,
+                    chars[name],
+                    (past - timedelta(days=5)).strftime(DATETIME_FORMAT),
+                    (past - timedelta(days=4)).strftime(DATETIME_FORMAT),
+                ),
+            )
+    games.save_summary(
+        conn,
+        gm,
+        past_id,
+        "Отряд спустился на первый ярус и нашёл старую карту шахты. "
+        "Миралла слышала голос из глубины. Следующая встреча — нижние ярусы.",
+    )
 
     notes.save_game_note(conn, gm, game_ids["Шахта Эхо, ч. 3"], MINE_NOTE)
     notes.save_game_note(conn, gm, game_ids["Туман над Серым Бродом"], FOG_NOTE)

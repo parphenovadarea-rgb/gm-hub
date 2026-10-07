@@ -1,6 +1,7 @@
 """Подсистема «Персонажи»: карточки персонажей Игрока (п. 4.2.2 ТЗ)."""
 
 from gm_hub.logic.errors import AccessError, ValidationError, require
+from gm_hub.logic.games import check_owner
 
 # Справочные значения по SRD 5.1 (п. 4.1.12 ТЗ). В поле можно ввести и своё.
 RACES = "Человек Эльф Дварф Полурослик Гном Полуорк Тифлинг".split()
@@ -149,3 +150,39 @@ def delete_character(conn, user, character_id) -> None:
         # Отклонённые заявки удаляем вместе с персонажем, иначе мешает внешний ключ.
         conn.execute("DELETE FROM Game_Signups WHERE character_id = ?", (character_id,))
         conn.execute("DELETE FROM Characters WHERE id = ?", (character_id,))
+
+
+def level_up_after_game(conn, user, game_id) -> int:
+    """Повышает на 1 уровень всех подтверждённых участников прошедшей сессии.
+
+    Повысить уровни за одну сессию можно только один раз; уровень не
+    поднимается выше 20.
+
+    Args:
+        conn: Подключение к БД.
+        user: Текущий пользователь (Мастер — владелец сессии).
+        game_id: id сессии.
+
+    Returns:
+        Число персонажей, получивших новый уровень.
+
+    Raises:
+        AccessError: Если сессия чужая.
+        ValidationError: Если сессия не прошла или уровни уже повышены.
+    """
+    game = check_owner(conn, user, game_id)
+    if game["status"] != "CLOSED":
+        raise ValidationError(
+            "Уровни", "Повысить уровни можно только после прошедшей сессии."
+        )
+    if game["levels_given"]:
+        raise ValidationError("Уровни", "За эту сессию уровни уже повышены.")
+    with conn:
+        cur = conn.execute(
+            "UPDATE Characters SET level = level + 1 WHERE level < 20 AND id IN "
+            "(SELECT character_id FROM Game_Signups "
+            "WHERE game_id = ? AND status = 'CONFIRMED')",
+            (game_id,),
+        )
+        conn.execute("UPDATE Games SET levels_given = 1 WHERE id = ?", (game_id,))
+    return cur.rowcount
