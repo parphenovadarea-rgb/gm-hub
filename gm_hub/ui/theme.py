@@ -4,11 +4,7 @@
 запуске. Модуль common берёт цвета из словаря COLORS этого модуля.
 """
 
-import json
-
-from gm_hub.config import DB_PATH
-
-SETTINGS_PATH = DB_PATH.parent / "settings.json"
+from gm_hub.settings import SETTINGS_PATH, read_settings, write_setting
 
 LIGHT = {
     "accent": "#285331",  # тёмно-зелёные кнопки
@@ -90,23 +86,17 @@ def load_theme(path=SETTINGS_PATH) -> str:
     Returns:
         «light» или «dark» (если файла нет или он испорчен — «light»).
     """
-    try:
-        with open(path, encoding="utf-8") as file:
-            theme = json.load(file).get("theme")
-    except (OSError, ValueError):
-        return "light"
-    return "dark" if theme == "dark" else "light"
+    return "dark" if read_settings(path).get("theme") == "dark" else "light"
 
 
 def save_theme(theme: str, path=SETTINGS_PATH) -> None:
-    """Сохраняет выбранную тему в файл настроек.
+    """Сохраняет выбранную тему (запомненные логины в файле остаются).
 
     Args:
         theme: «light» или «dark».
         path: Путь к settings.json.
     """
-    with open(path, "w", encoding="utf-8") as file:
-        json.dump({"theme": theme}, file)
+    write_setting("theme", theme, path)
 
 
 THEME = load_theme()
