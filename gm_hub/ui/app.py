@@ -9,7 +9,7 @@ from tkinter import messagebox
 from gm_hub.logic import auth
 from gm_hub.logic.errors import AccessError, ValidationError
 from gm_hub.ui.auth_windows import LoginFrame, RegisterFrame
-from gm_hub.ui.common import px, setup_style
+from gm_hub.ui.common import ScrollArea, px, setup_style
 from gm_hub.ui.gm_window import GMFrame
 from gm_hub.ui.player_window import PlayerFrame
 from gm_hub.ui.profile_window import ProfileWindow
@@ -49,6 +49,10 @@ class App(tk.Tk):
         self.screen = None
         self.restart = False  # True — main.py пересоздаст окно с новой темой
         setup_style(self)
+        # Экраны кладутся в область с ползунками: в маленьком окне их можно
+        # прокрутить, а не обрезать.
+        self.scroll = ScrollArea(self)
+        self.scroll.pack(fill="both", expand=True)
         if user is not None:
             self.open_main(user)
         # Сценарий 1 п. 6.1 ТЗ: при первом запуске открывается регистрация.
@@ -57,13 +61,15 @@ class App(tk.Tk):
         else:
             self.show_register()
 
-    def show(self, screen_class, title: str, size: str) -> None:
+    def show(self, screen_class, title: str, size: str, min_size: str) -> None:
         """Заменяет текущий экран новым.
 
         Args:
             screen_class: Класс экрана (Frame), создаётся здесь.
             title: Заголовок окна.
-            size: Размер окна, например «1280x760».
+            size: Размер окна при открытии, например «1280x760».
+            min_size: Размер, меньше которого экран не сжимается: если окно
+                уменьшить сильнее, появляются ползунки.
         """
         if self.screen is not None:
             self.screen.destroy()
@@ -72,14 +78,16 @@ class App(tk.Tk):
         self.geometry(f"{px(width)}x{px(height)}")
         self.screen = screen_class(self)
         self.screen.pack(fill="both", expand=True)
+        min_width, min_height = (int(n) for n in min_size.split("x"))
+        self.scroll.set_min_size(px(min_width), px(min_height))
 
     def show_login(self) -> None:
         """Открывает окно входа."""
-        self.show(LoginFrame, "Вход", "500x470")
+        self.show(LoginFrame, "Вход", "500x470", "460x440")
 
     def show_register(self) -> None:
         """Открывает окно регистрации."""
-        self.show(RegisterFrame, "Регистрация", "540x620")
+        self.show(RegisterFrame, "Регистрация", "540x620", "500x590")
 
     def open_main(self, user) -> None:
         """Открывает окно по роли пользователя (п. 4.2.1 ТЗ).
@@ -89,9 +97,9 @@ class App(tk.Tk):
         """
         self.user = user
         if user["role"] == "GM":
-            self.show(GMFrame, "Мастер", "1360x780")
+            self.show(GMFrame, "Мастер", "1360x780", "1360x640")
         else:
-            self.show(PlayerFrame, "Игрок", "1420x780")
+            self.show(PlayerFrame, "Игрок", "1420x780", "1240x640")
 
     def toggle_theme(self) -> None:
         """Переключает светлую и тёмную тему.

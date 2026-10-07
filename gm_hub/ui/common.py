@@ -123,6 +123,18 @@ def setup_style(root: tk.Tk) -> None:
     rounded_button(style, "Small.Danger.TButton", "button", hover="danger_hover")
     rounded_button(style, "Small.TButton", "button", hover="button_hover")
     style.configure("Small.TButton", font=FONT_SMALL, padding=px((9, 2)))
+    # Полосы прокрутки окна в цветах темы (появляются, если окно уменьшить).
+    style.configure(
+        "TScrollbar",
+        background=HEAD,
+        troughcolor=PAGE,
+        bordercolor=PAGE,
+        lightcolor=HEAD,
+        darkcolor=HEAD,
+        arrowcolor=MUTED,
+        gripcount=0,
+    )
+    style.map("TScrollbar", background=[("active", LINE)])
     style.configure(
         "Small.Accent.TButton", foreground="white", font=FONT_SMALL, padding=px((9, 2))
     )
@@ -745,7 +757,7 @@ class MainFrame(ttk.Frame):
             subtitle: Подпись под названием программы.
             tabs: Список пар (название вкладки, класс вкладки).
         """
-        super().__init__(app)
+        super().__init__(app.scroll.page)
         self.app = app
         header = ttk.Frame(self, padding=px((16, 10, 16, 0)), style="Head.TFrame")
         header.pack(fill="x")
@@ -846,6 +858,68 @@ class MainFrame(ttk.Frame):
             text: Текст, например «Предстоящих: 4  Свободных мест: 8».
         """
         self.status.config(text=text)
+
+
+class ScrollArea(ttk.Frame):
+    """Область окна с ползунками.
+
+    Пока окно не меньше нужного размера, экран растягивается на всё окно и
+    ползунков не видно. Если окно уменьшить, экран сохраняет свой размер, а
+    справа и снизу появляются полосы прокрутки.
+
+    Attributes:
+        page: Рамка, в которую помещается экран (вход, кабинет и т. д.).
+    """
+
+    def __init__(self, parent):
+        """Создаёт холст с ползунками.
+
+        Args:
+            parent: Главное окно.
+        """
+        super().__init__(parent)
+        self.canvas = tk.Canvas(self, bg=PAGE, highlightthickness=0, bd=0)
+        self.v_bar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.h_bar = ttk.Scrollbar(self, orient="horizontal", command=self.canvas.xview)
+        self.canvas.configure(
+            yscrollcommand=self.v_bar.set, xscrollcommand=self.h_bar.set
+        )
+        self.canvas.grid(row=0, column=0, sticky="nsew")
+        self.rowconfigure(0, weight=1)
+        self.columnconfigure(0, weight=1)
+        self.page = ttk.Frame(self.canvas)
+        self.window = self.canvas.create_window(0, 0, window=self.page, anchor="nw")
+        self.min_width = self.min_height = 0
+        self.canvas.bind("<Configure>", self.resize)
+
+    def set_min_size(self, width: int, height: int) -> None:
+        """Задаёт размер, меньше которого экран не сжимается.
+
+        Args:
+            width: Ширина в пикселях.
+            height: Высота в пикселях.
+        """
+        self.min_width, self.min_height = width, height
+        self.canvas.xview_moveto(0)
+        self.canvas.yview_moveto(0)
+        self.resize()
+
+    def resize(self, _event=None) -> None:
+        """Подгоняет экран под окно и показывает ползунки, если они нужны."""
+        view_width = self.canvas.winfo_width()
+        view_height = self.canvas.winfo_height()
+        width = max(view_width, self.min_width)
+        height = max(view_height, self.min_height)
+        self.canvas.itemconfigure(self.window, width=width, height=height)
+        self.canvas.configure(scrollregion=(0, 0, width, height))
+        if width > view_width:
+            self.h_bar.grid(row=1, column=0, sticky="ew")
+        else:
+            self.h_bar.grid_remove()
+        if height > view_height:
+            self.v_bar.grid(row=0, column=1, sticky="ns")
+        else:
+            self.v_bar.grid_remove()
 
 
 def ask_text(parent, title: str, prompt: str):
