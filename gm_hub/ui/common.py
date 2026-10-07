@@ -216,7 +216,11 @@ def setup_style(root: tk.Tk) -> None:
         padding=px((12, 3)),
         **_no_3d(),
     )
-    style.map("Seg.Toolbutton", foreground=[("selected", GREEN_TEXT)])
+    style.map(
+        "Seg.Toolbutton",
+        foreground=[("selected", GREEN_TEXT)],
+        background=[(state, BG) for state in ("disabled", "pressed", "active")],
+    )
     image_layout(
         style,
         "Seg.Toolbutton",
@@ -412,6 +416,23 @@ def image(name: str) -> tk.PhotoImage:
     return _images[name]
 
 
+def keep_background(style, style_name: str, color: str) -> None:
+    """Не даёт теме clam менять фон кнопки при наведении и нажатии.
+
+    clam при наведении делает фон светлым, а у скруглённой картинки этот
+    фон виден в уголках — в тёмной теме получались светлые точки по углам.
+
+    Args:
+        style: Объект ttk.Style.
+        style_name: Имя стиля.
+        color: Фон, который нужен во всех состояниях.
+    """
+    style.map(
+        style_name,
+        background=[(state, color) for state in ("disabled", "pressed", "active")],
+    )
+
+
 def rounded_button(style, style_name, normal, hover, disabled=None) -> None:
     """Делает кнопку стиля style_name со скруглёнными углами.
 
@@ -425,6 +446,7 @@ def rounded_button(style, style_name, normal, hover, disabled=None) -> None:
         hover: Картинка при наведении мыши.
         disabled: Картинка неактивной кнопки (если нужна).
     """
+    keep_background(style, style_name, BG)
     states = [("active", image(hover))]
     if disabled:
         states.insert(0, ("disabled", image(disabled)))
@@ -999,7 +1021,9 @@ def fix_corners(widget) -> None:
             name = str(child.cget("style")) or child.winfo_class()
             if name in ROUNDED_STYLES and on_page(child):
                 page_style = "Page." + name
-                ttk.Style(child).configure(page_style, background=PAGE)
+                style = ttk.Style(child)
+                style.configure(page_style, background=PAGE)
+                keep_background(style, page_style, PAGE)
                 child.configure(style=page_style)
         fix_corners(child)
 
