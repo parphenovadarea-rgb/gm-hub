@@ -1248,6 +1248,34 @@ def make_text(parent, height: int = 5, headings: bool = False) -> RoundText:
     return RoundText(parent, height, headings)
 
 
+def password_field(parent, label: str, entries: list) -> ttk.Frame:
+    """Подпись над полем пароля со ссылкой «показать / скрыть».
+
+    Args:
+        parent: Родительский виджет.
+        label: Текст подписи, например «Пароль».
+        entries: Список полей пароля, которые переключает ссылка (поля
+            можно добавить в список уже после вызова).
+
+    Returns:
+        Строка с подписью (уже размещена через pack).
+    """
+    row = ttk.Frame(parent)
+    row.pack(fill="x", pady=px((7, 2)))
+    ttk.Label(row, text=label, style="Field.TLabel").pack(side="left")
+
+    def toggle():
+        hidden = entries[0].cget("show") != ""
+        for entry in entries:
+            entry.config(show="" if hidden else "●")
+        switch.config(text="скрыть" if hidden else "показать")
+
+    switch = link(row, "показать", toggle, color=MUTED)
+    switch.config(font=FONT_SMALL)
+    switch.pack(side="right")
+    return row
+
+
 def field(parent, label: str, page: bool = False) -> ttk.Label:
     """Создаёт подпись над полем ввода, как в макетах.
 
