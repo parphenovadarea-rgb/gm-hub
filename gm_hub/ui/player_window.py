@@ -15,6 +15,7 @@ from gm_hub.ui.common import (
     px,
     Banner,
     ChoiceCards,
+    FormGuard,
     MainFrame,
     card,
     field,
@@ -61,6 +62,10 @@ class PlayerFrame(MainFrame):
             ],
         )
 
+    def update_badges(self) -> None:
+        """Пишет на вкладке «Мои записи» число новых решений Мастеров."""
+        self.set_badge(1, signups.count_new_decisions(self.app.conn, self.app.user))
+
 
 class Tab(ttk.Frame):
     """Общая основа вкладки: серый фон и доступ к БД и пользователю."""
@@ -78,6 +83,10 @@ class Tab(ttk.Frame):
     def status(self, text: str) -> None:
         """Пишет итоги вкладки в строку внизу окна."""
         self.master.master.set_status(text)
+
+    def can_leave(self) -> bool:
+        """На вкладке без формы уходить можно всегда."""
+        return True
 
 
 class ShowcaseTab(Tab):
@@ -142,9 +151,19 @@ class ShowcaseTab(Tab):
             top, style="PageInk.TLabel", font=("Georgia", 13, "bold")
         )
         self.master_label.pack(side="left")
+        # Фильтры витрины: период по дате и только сессии со свободными местами.
+        filters = ttk.Frame(self, style="Page.TFrame")
+        filters.pack(fill="x", pady=px((8, 0)))
+        self.period = tk.StringVar(value="Все даты")
+        segmented(
+            filters,
+            [(name, name) for name in games.PERIOD_DAYS],
+            self.period,
+            self.load_games,
+        ).pack(side="left")
         self.only_free = tk.BooleanVar(value=False)
         ttk.Checkbutton(
-            top,
+            filters,
             text="Только со свободными местами",
             variable=self.only_free,
             command=self.load_games,
@@ -220,11 +239,17 @@ class ShowcaseTab(Tab):
         for row in signups.list_for_player(conn, user):
             my_status.setdefault(row["game_id"], []).append(row["status"])
 
-        self.table.clear("У этого Мастера нет предстоящих сессий")
+        days = games.PERIOD_DAYS[self.period.get()]
+        if days or self.only_free.get():
+            self.table.clear("Нет сессий под выбранные условия.\nСнимите фильтр.")
+        else:
+            self.table.clear("У этого Мастера нет предстоящих сессий")
         shown = 0
         for game in games.list_games(conn, gm_id=self.master_id):
             free = games.free_seats(game["max_players"], game["confirmed"])
             if self.only_free.get() and free <= 0:
+                continue
+            if not games.in_period(game["scheduled_at"], days):
                 continue
             title = [("bold", game["title"])]
             if game["description"]:
@@ -340,10 +365,15 @@ class MySignupsTab(Tab):
         )
         rows = signups.list_for_player(self.app.conn, self.app.user)
         now = now_str()
+        # Решения, принятые после прошлого просмотра, отмечаются «НОВОЕ».
+        seen = signups.seen_at(self.app.conn, self.app.user) or ""
         for row in rows:
             upcoming = row["scheduled_at"] >= now
             if upcoming != (self.period.get() == "future"):
                 continue
+            decision = [("muted", to_short(row["decided_at"]))]
+            if row["decided_at"] and row["decided_at"] > seen:
+                decision.append(("pill", "новое", "warn"))
             self.table.add(
                 row["id"],
                 [
@@ -358,7 +388,7 @@ class MySignupsTab(Tab):
                     row["character_name"],
                     ("muted", row["comment"] or "—"),
                     status_cell(row),
-                    ("muted", to_short(row["decided_at"])),
+                    ("stack", decision),
                 ],
                 sort=[
                     row["game_title"].lower(),
@@ -382,6 +412,7 @@ class MySignupsTab(Tab):
             f"Подтверждено: {len(confirmed)}      Ждут решения: {len(pending)}      "
             f"Ближайшая игра: {nearest}"
         )
+        signups.mark_decisions_seen(self.app.conn, self.app.user)
 
     def on_withdraw(self):
         """Отзывает выбранную заявку после подтверждения."""
@@ -393,7 +424,7 @@ class MySignupsTab(Tab):
             self.refresh()
 
 
-class CharactersTab(Tab):
+class CharactersTab(FormGuard, Tab):
     """Вкладка «Мои персонажи»: карточки персонажей (макет 09)."""
 
     def __init__(self, parent, app):
@@ -406,7 +437,7 @@ class CharactersTab(Tab):
         super().__init__(parent, app)
         self.character_id = None
 
-        left = card(self, "Персонажи", action=("+ Новый", self.clear_form))
+        left = card(self, "Персонажи", action=("+ Новый", self.on_new))
         left.master.pack(side="left", fill="y")
         left.configure(padding=0)
         self.table = RowTable(
@@ -490,9 +521,34 @@ class CharactersTab(Tab):
         self.error.hide()
         self.refresh()
         self.name.focus()
+        self.remember()
+
+    def form_state(self):
+        """Значения полей карточки — чтобы заметить несохранённые правки."""
+        return (
+            self.name.get(),
+            self.race.get(),
+            self.cls.get(),
+            get_text(self.backstory),
+        )
+
+    def discard(self):
+        """Отбрасывает правки карточки."""
+        if self.character_id is None:
+            self.clear_form()
+        else:
+            self.reload()
+
+    def on_new(self):
+        """Кнопка «+ Новый»: пустая карточка (с вопросом о правках)."""
+        if self.can_leave():
+            self.clear_form()
 
     def on_select(self, character_id):
-        """Запоминает выбранного персонажа и загружает его в форму."""
+        """Загружает выбранного персонажа (спросив о несохранённых правках)."""
+        if character_id != self.character_id and not self.can_leave():
+            self.table.select(self.character_id, notify=False)
+            return
         self.character_id = character_id
         self.reload()
 
@@ -508,6 +564,8 @@ class CharactersTab(Tab):
         self.level = c["level"]
         set_text(self.backstory, c["backstory"])
         self.error.hide()
+        self.table.select(self.character_id, notify=False)
+        self.remember()
 
     def on_save(self):
         """Сохраняет карточку персонажа; ошибку показывает в форме."""
@@ -526,6 +584,7 @@ class CharactersTab(Tab):
             self.error.show(error.message)
             return
         self.error.show("Карточка персонажа сохранена.", "ok")
+        self.remember()
         self.refresh()
 
     def on_delete(self):

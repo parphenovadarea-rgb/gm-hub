@@ -1,6 +1,8 @@
 """Подсистема «Запись»: заявки Игроков на сессии (п. 4.2.3 ТЗ)."""
 
-from gm_hub.config import now_str
+import csv
+
+from gm_hub.config import now_str, to_show
 from gm_hub.logic.auth import check_gm
 from gm_hub.logic.errors import AccessError, ValidationError
 from gm_hub.logic.games import check_owner, free_seats, get_game
@@ -235,3 +237,85 @@ def reject_signup(conn, user, signup_id, reason: str = "") -> None:
             "WHERE id = ?",
             (now_str(), reason.strip() or None, signup_id),
         )
+
+
+def seen_at(conn, user):
+    """Возвращает, когда Игрок последний раз открывал «Мои записи» (или None)."""
+    row = conn.execute(
+        "SELECT signups_seen_at FROM Users WHERE id = ?", (user["id"],)
+    ).fetchone()
+    return row["signups_seen_at"] if row else None
+
+
+def count_new_decisions(conn, user) -> int:
+    """Считает решения Мастеров по заявкам Игрока, которые он ещё не видел.
+
+    Новое решение — заявка подтверждена или отклонена позже, чем Игрок
+    последний раз открывал раздел «Мои записи».
+
+    Args:
+        conn: Подключение к БД.
+        user: Текущий пользователь (Игрок).
+
+    Returns:
+        Число новых решений.
+    """
+    seen = seen_at(conn, user) or ""
+    return conn.execute(
+        "SELECT COUNT(*) FROM Game_Signups s "
+        "JOIN Characters c ON c.id = s.character_id "
+        "WHERE c.user_id = ? AND s.decided_at IS NOT NULL AND s.decided_at > ?",
+        (user["id"], seen),
+    ).fetchone()[0]
+
+
+def mark_decisions_seen(conn, user) -> None:
+    """Запоминает, что Игрок просмотрел решения по своим заявкам.
+
+    Args:
+        conn: Подключение к БД.
+        user: Текущий пользователь (Игрок).
+    """
+    with conn:
+        conn.execute(
+            "UPDATE Users SET signups_seen_at = ? WHERE id = ?",
+            (now_str(), user["id"]),
+        )
+
+
+def export_participants(conn, user, game_id, path) -> int:
+    """Сохраняет список подтверждённых участников сессии в файл CSV.
+
+    Файл открывается в Excel: разделитель «;», кодировка UTF-8 с меткой BOM.
+
+    Args:
+        conn: Подключение к БД.
+        user: Текущий пользователь (Мастер — владелец сессии).
+        game_id: id сессии.
+        path: Путь к файлу .csv.
+
+    Returns:
+        Число участников в файле.
+
+    Raises:
+        AccessError: Если пользователь не Мастер или сессия чужая.
+    """
+    check_gm(user)
+    game = check_owner(conn, user, game_id)
+    rows = conn.execute(
+        "SELECT c.name, c.race, c.class, c.level, u.full_name, s.comment "
+        "FROM Game_Signups s "
+        "JOIN Characters c ON c.id = s.character_id "
+        "JOIN Users u ON u.id = c.user_id "
+        "WHERE s.game_id = ? AND s.status = 'CONFIRMED' ORDER BY c.name",
+        (game_id,),
+    ).fetchall()
+    with open(path, "w", newline="", encoding="utf-8-sig") as file:
+        writer = csv.writer(file, delimiter=";")
+        writer.writerow([f"Сессия: {game['title']}", to_show(game["scheduled_at"])])
+        writer.writerow(
+            ["Персонаж", "Раса", "Класс", "Уровень", "Игрок", "Комментарий"]
+        )
+        for row in rows:
+            writer.writerow([value if value is not None else "" for value in row])
+    return len(rows)

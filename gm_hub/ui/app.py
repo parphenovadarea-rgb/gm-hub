@@ -53,6 +53,7 @@ class App(tk.Tk):
         # прокрутить, а не обрезать.
         self.scroll = ScrollArea(self)
         self.scroll.pack(fill="both", expand=True)
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
         if user is not None:
             self.open_main(user)
         # Сценарий 1 п. 6.1 ТЗ: при первом запуске открывается регистрация.
@@ -119,9 +120,24 @@ class App(tk.Tk):
         Цвета задаются при создании виджетов, поэтому окно закрывается,
         а main.py создаёт его заново уже с новой темой (вход не нужен).
         """
+        if not self.can_leave():
+            return
         save_theme("light" if THEME == "dark" else "dark")
         self.restart = True
         self.destroy()
+
+    def can_leave(self) -> bool:
+        """Спрашивает о несохранённых изменениях на открытом экране.
+
+        Returns:
+            True, если экран можно закрыть.
+        """
+        return getattr(self.screen, "can_leave", lambda: True)()
+
+    def on_close(self) -> None:
+        """Закрывает программу (крестик окна), не теряя несохранённое."""
+        if self.can_leave():
+            self.destroy()
 
     def show_profile(self) -> None:
         """Открывает окно профиля текущего пользователя."""
@@ -129,6 +145,8 @@ class App(tk.Tk):
 
     def logout(self) -> None:
         """Выходит из учётной записи."""
+        if not self.can_leave():
+            return
         self.user = None
         self.show_login()
 

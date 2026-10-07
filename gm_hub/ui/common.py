@@ -8,9 +8,10 @@ import tkinter as tk
 import tkinter.font as tkfont
 from datetime import datetime, timedelta
 from pathlib import Path
-from tkinter import ttk
+from tkinter import messagebox, ttk
 
 from gm_hub.config import DATETIME_FORMAT
+from gm_hub.logic.errors import ValidationError
 from gm_hub.ui.theme import COLORS as C
 from gm_hub.ui.theme import THEME
 
@@ -811,7 +812,9 @@ class MainFrame(ttk.Frame):
             label.pack(side="left", padx=px((10, 0)))
 
         self.current = tk.IntVar(value=0)
+        self.shown = None  # номер вкладки, которая сейчас на экране
         self.tab_buttons = []
+        self.tab_titles = [title for title, _ in tabs]
         bar = ttk.Frame(header, style="Head.TFrame")
         bar.pack(side="left", anchor="s", padx=px((48, 0)))
 
@@ -848,6 +851,22 @@ class MainFrame(ttk.Frame):
         self.bind_all("<Control-KeyPress>", self.on_ctrl_key)
         fix_corners(self)
         self.show_tab()
+        self.poll_id = None
+        self.poll_badges()
+
+    def update_badges(self) -> None:
+        """Обновляет числа на вкладках; переопределяется в окнах."""
+
+    def poll_badges(self) -> None:
+        """Раз в 30 секунд обновляет числа на вкладках (новые заявки, решения)."""
+        self.update_badges()
+        self.poll_id = self.after(30000, self.poll_badges)
+
+    def destroy(self) -> None:
+        """Останавливает обновление вкладок и закрывает окно кабинета."""
+        if self.poll_id is not None:
+            self.after_cancel(self.poll_id)
+        super().destroy()
 
     def on_ctrl_key(self, event) -> None:
         """Обрабатывает Ctrl+S: вызывает on_save открытой вкладки."""
@@ -859,19 +878,47 @@ class MainFrame(ttk.Frame):
     def show_tab(self, index: int | None = None) -> None:
         """Показывает вкладку и перечитывает её данные из БД.
 
+        Если на открытой вкладке есть несохранённые изменения, сначала
+        спрашивает, сохранить ли их; при «Отмене» вкладка не меняется.
+
         Args:
             index: Номер вкладки. None — текущая выбранная.
         """
         if index is not None:
             self.current.set(index)
-        tab = self.tabs[self.current.get()]
+        new = self.current.get()
+        if self.shown is not None and new != self.shown:
+            if not self.tabs[self.shown].can_leave():
+                self.current.set(self.shown)
+                return
+        self.shown = new
+        tab = self.tabs[new]
         tab.tkraise()
         self.set_status("")
         tab.refresh()
         self.on_tab_shown()
 
+    def can_leave(self) -> bool:
+        """Проверяет несохранённые изменения на открытой вкладке.
+
+        Returns:
+            True, если можно уйти с вкладки (выйти, сменить тему).
+        """
+        return self.shown is None or self.tabs[self.shown].can_leave()
+
+    def set_badge(self, index: int, count: int) -> None:
+        """Показывает число рядом с названием вкладки: «Мои записи (2)».
+
+        Args:
+            index: Номер вкладки.
+            count: Число; 0 — убрать отметку.
+        """
+        title = self.tab_titles[index]
+        self.tab_buttons[index].config(text=f"{title} ({count})" if count else title)
+
     def on_tab_shown(self) -> None:
-        """Вызывается после смены вкладки; переопределяется в окнах."""
+        """Вызывается после смены вкладки: обновляет числа на вкладках."""
+        self.update_badges()
 
     def set_status(self, text: str) -> None:
         """Пишет текст в строку итогов внизу окна.
@@ -913,6 +960,16 @@ class ScrollArea(ttk.Frame):
         self.window = self.canvas.create_window(0, 0, window=self.page, anchor="nw")
         self.min_width = self.min_height = 0
         self.canvas.bind("<Configure>", self.resize)
+        # Колесо мыши занято таблицами, поэтому окно прокручивается с Shift.
+        self.bind_all("<Shift-MouseWheel>", self.on_wheel)
+
+    def on_wheel(self, event) -> None:
+        """Shift + колесо: прокрутка окна вверх-вниз (или влево-вправо)."""
+        step = -event.delta // 120
+        if self.v_bar.winfo_ismapped():
+            self.canvas.yview_scroll(step, "units")
+        elif self.h_bar.winfo_ismapped():
+            self.canvas.xview_scroll(step, "units")
 
     def set_min_size(self, width: int, height: int) -> None:
         """Задаёт размер, меньше которого экран не сжимается.
@@ -942,6 +999,47 @@ class ScrollArea(ttk.Frame):
             self.v_bar.grid(row=0, column=1, sticky="ns")
         else:
             self.v_bar.grid_remove()
+
+
+class FormGuard:
+    """Добавка к вкладке с формой: не даёт потерять несохранённые правки.
+
+    Вкладка задаёт form_state() — текущие значения полей, on_save() и
+    discard() — вернуть сохранённые значения. После загрузки и сохранения
+    формы вкладка вызывает remember().
+    """
+
+    def remember(self) -> None:
+        """Запоминает значения полей как сохранённые."""
+        self.saved_state = self.form_state()
+
+    def is_dirty(self) -> bool:
+        """Есть ли в форме несохранённые изменения."""
+        return self.form_state() != getattr(self, "saved_state", None)
+
+    def can_leave(self) -> bool:
+        """Спрашивает, сохранить ли изменения, перед уходом с формы.
+
+        Returns:
+            True — можно уходить (сохранено или правки отброшены),
+            False — пользователь нажал «Отмена» или сохранить не удалось.
+        """
+        if not self.is_dirty():
+            return True
+        answer = messagebox.askyesnocancel(
+            "Несохранённые изменения", "Сохранить изменения?", parent=self
+        )
+        if answer is None:
+            return False
+        if answer:
+            try:
+                self.on_save()
+            except ValidationError as error:
+                messagebox.showwarning("Проверьте данные", error.message, parent=self)
+                return False
+            return not self.is_dirty()
+        self.discard()
+        return True
 
 
 def ask_text(parent, title: str, prompt: str):
