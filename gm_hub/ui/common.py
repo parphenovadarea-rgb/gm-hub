@@ -752,6 +752,7 @@ class Tooltip:
         y = self.widget.winfo_pointery() + px(18)
         self.window = tk.Toplevel(self.widget)
         self.window.wm_overrideredirect(True)  # без рамки и заголовка
+        self.window.attributes("-topmost", True)  # поверх любых окон
         self.window.wm_geometry(f"+{x}+{y}")
         tk.Label(
             self.window,
@@ -764,6 +765,12 @@ class Tooltip:
             padx=px(8),
             pady=px(4),
         ).pack()
+        # у правого края экрана подсказка сдвигается влево, чтобы не обрезаться
+        self.window.update_idletasks()
+        right = self.window.winfo_screenwidth() - px(8)
+        if x + self.window.winfo_width() > right:
+            x = right - self.window.winfo_width()
+            self.window.wm_geometry(f"+{x}+{y}")
 
     def hide(self, _event=None) -> None:
         """Убирает подсказку."""
