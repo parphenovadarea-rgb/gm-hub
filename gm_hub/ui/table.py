@@ -105,7 +105,66 @@ class Pill(tk.Canvas):
         self.create_text(width // 2, height // 2, text=text, fill=color, font=font)
 
 
-class SeatsBar(tk.Canvas):
+def _rgb(color: str) -> tuple:
+    """«#285331» -> (40, 83, 49)."""
+    return tuple(int(color[i : i + 2], 16) for i in (1, 3, 5))
+
+
+def _mix(back: tuple, front: tuple, share: float) -> tuple:
+    """Смешивает два цвета: share — доля верхнего цвета (0..1)."""
+    return tuple(round(b + (f - b) * share) for b, f in zip(back, front))
+
+
+def _capsule(x: int, y: int, length: float, h: int) -> float:
+    """Какая доля пикселя (x, y) закрыта капсулой длиной length и высотой h.
+
+    Пиксель делится на 4×4 точки: так края капсулы получаются гладкими
+    (сглаживание), а не «ступеньками».
+    """
+    r = h / 2
+    inside = 0
+    for i in range(4):
+        for j in range(4):
+            sx, sy = x + (i + 0.5) / 4, y + (j + 0.5) / 4
+            cx = min(max(sx, r), length - r)  # ближайшая точка оси капсулы
+            inside += (sx - cx) ** 2 + (sy - r) ** 2 <= r * r
+    return inside / 16
+
+
+_BAR_CACHE = {}  # одинаковые полоски рисуются один раз
+
+
+def bar_image(widget, w: int, h: int, filled: int, bg: str, track: str, fill: str):
+    """Картинка полоски мест со сглаженными скруглёнными концами.
+
+    Args:
+        widget: Любой виджет окна (картинка принадлежит этому окну Tk).
+        w, h: Размер в пикселях.
+        filled: Длина закрашенной части в пикселях.
+        bg, track, fill: Цвета фона, пустой дорожки и занятой части.
+
+    Returns:
+        tk.PhotoImage.
+    """
+    key = (id(widget.tk), w, h, filled, bg, track, fill)
+    if key not in _BAR_CACHE:
+        back, line, front = _rgb(bg), _rgb(track), _rgb(fill)
+        rows = []
+        for y in range(h):
+            row = []
+            for x in range(w):
+                color = _mix(back, line, _capsule(x, y, w, h))
+                if filled:
+                    color = _mix(color, front, _capsule(x, y, max(filled, h), h))
+                row.append("#%02x%02x%02x" % color)
+            rows.append("{" + " ".join(row) + "}")
+        image = tk.PhotoImage(master=widget, width=w, height=h)
+        image.put(" ".join(rows))
+        _BAR_CACHE[key] = image
+    return _BAR_CACHE[key]
+
+
+class SeatsBar(tk.Label):
     """Полоска заполненности мест: зеленеет по мере записи, полная — тёмная."""
 
     def __init__(self, parent, taken: int, total: int, bg: str = BG, width: int = 70):
@@ -119,19 +178,22 @@ class SeatsBar(tk.Canvas):
             width: Ширина полоски для экрана 100 %.
         """
         w, h = px(width), px(8)
-        super().__init__(parent, width=w, height=h, bg=bg, highlightthickness=0, bd=0)
-        self._round(0, w, h, LINE)  # пустая дорожка
         filled = round(w * min(taken, total) / total) if total else 0
         color = C["seat_taken"] if taken >= total else C["green_text"]
-        if filled:
-            self._round(0, max(filled, h), h, color)
+        self.shape = (w, h, filled)
+        self.color = color
+        self.image = bar_image(parent, w, h, filled, bg, LINE, color)
+        super().__init__(parent, image=self.image, bg=bg, bd=0)
         Tooltip(self, f"Занято {taken} из {total} мест")
 
-    def _round(self, x0, x1, h, color) -> None:
-        """Скруглённый прямоугольник: два круга по краям и прямоугольник."""
-        self.create_oval(x0, 0, x0 + h, h - 1, fill=color, outline=color)
-        self.create_oval(x1 - h, 0, x1 - 1, h - 1, fill=color, outline=color)
-        self.create_rectangle(x0 + h // 2, 0, x1 - h // 2, h - 1, fill=color, width=0)
+    def configure(self, cnf=None, **kw):
+        """При смене фона (подсветка строки) перерисовывает и края полоски."""
+        if "bg" in kw:
+            self.image = bar_image(self, *self.shape, kw["bg"], LINE, self.color)
+            kw["image"] = self.image
+        return super().configure(cnf, **kw)
+
+    config = configure
 
 
 def hint_for(text: str):
