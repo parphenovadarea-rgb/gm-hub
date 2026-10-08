@@ -11,10 +11,12 @@ from tkinter import messagebox, ttk
 from gm_hub.config import now_str, to_short, to_show
 from gm_hub.logic import auth, characters, games, signups
 from gm_hub.logic.errors import ValidationError
+from gm_hub.settings import get_setting, write_setting
 from gm_hub.ui.common import (
     px,
     Banner,
     ChoiceCards,
+    FONT_HEADING,
     FormGuard,
     MainFrame,
     card,
@@ -101,6 +103,7 @@ class ShowcaseTab(Tab):
         """
         super().__init__(parent, app)
         self.master_id = None
+        self.master_key = "master_" + app.user["login"]  # выбор Мастера
 
         # Слева — выбор Мастера с поиском по имени.
         left = ttk.Frame(self, style="Page.TFrame")
@@ -149,9 +152,7 @@ class ShowcaseTab(Tab):
 
         top = ttk.Frame(self, style="Page.TFrame")
         top.pack(fill="x")
-        self.master_label = ttk.Label(
-            top, style="PageInk.TLabel", font=("Georgia", 13, "bold")
-        )
+        self.master_label = ttk.Label(top, style="PageInk.TLabel", font=FONT_HEADING)
         self.master_label.pack(side="left")
         # Фильтры витрины: период по дате и только сессии со свободными местами.
         filters = ttk.Frame(self, style="Page.TFrame")
@@ -181,6 +182,7 @@ class ShowcaseTab(Tab):
                 ("Моя заявка", 140, False),
             ],
             on_select=self.on_select,
+            on_double=self.on_double,
         )
         self.table.pack(fill="both", expand=True, pady=px((12, 0)))
 
@@ -201,6 +203,7 @@ class ShowcaseTab(Tab):
                 f"{to_show(game['scheduled_at'])}, Мастер {game['gm_name']}, "
                 f"персонаж {game['character_name']}.",
                 "ok",
+                auto_hide=False,
             )
         else:
             self.reminder.hide()
@@ -224,6 +227,9 @@ class ShowcaseTab(Tab):
                 ],
             )
         ids = [m["id"] for m in found]
+        if self.master_id is None:
+            # при входе — Мастер, выбранный в прошлый раз
+            self.master_id = get_setting(self.master_key)
         if self.master_id not in ids:
             self.master_id = ids[0] if ids else None
         if self.master_id is not None:
@@ -231,9 +237,29 @@ class ShowcaseTab(Tab):
         self.load_games()
 
     def on_master(self, master_id):
-        """Выбирает Мастера и показывает его сессии."""
+        """Выбирает Мастера, запоминает выбор и показывает его сессии."""
         self.master_id = master_id
+        try:
+            write_setting(self.master_key, master_id)
+        except OSError:
+            pass  # файл настроек недоступен — просто не запоминаем
         self.load_games()
+
+    def on_double(self, game_id):
+        """Двойной щелчок по сессии: выбрать её и перейти к выбору персонажа."""
+        self.table.select(game_id)
+        options = list(self.characters.cards)
+        if len(options) == 1:
+            self.characters.select(options[0])  # единственный персонаж — сразу
+        self.send_button.focus_set()
+
+    def open_game(self, master_id, game_id):
+        """Показывает сессию на витрине (переход из «Мои записи»)."""
+        self.master_id = master_id
+        self.search.delete(0, "end")
+        self.load_masters()
+        if game_id in self.table.rows:
+            self.table.select(game_id)
 
     def load_games(self):
         """Показывает предстоящие сессии выбранного Мастера."""
@@ -374,8 +400,17 @@ class MySignupsTab(Tab):
                 ("Статус", 168, False),
                 ("Решение", 112, False),
             ],
+            on_double=self.on_double,
         )
         self.table.pack(fill="both", expand=True, pady=px((12, 0)))
+        self.rows = {}  # id заявки -> строка заявки
+
+    def on_double(self, signup_id):
+        """Двойной щелчок по записи: открыть её сессию на витрине."""
+        row = self.rows[signup_id]
+        main = self.master.master
+        main.show_tab(0)
+        main.tabs[0].open_game(row["gm_id"], row["game_id"])
 
     def refresh(self):
         """Перечитывает заявки текущего Игрока (сценарий 14)."""
@@ -384,6 +419,7 @@ class MySignupsTab(Tab):
             "Заявок пока нет.\nЗапишитесь на игру во вкладке «Витрина сессий»."
         )
         rows = signups.list_for_player(self.app.conn, self.app.user)
+        self.rows = {row["id"]: row for row in rows}
         now = now_str()
         # Решения, принятые после прошлого просмотра, отмечаются «НОВОЕ».
         seen = signups.seen_at(self.app.conn, self.app.user) or ""

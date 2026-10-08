@@ -11,7 +11,9 @@ from pathlib import Path
 from tkinter import messagebox, ttk
 
 from gm_hub.config import DATETIME_FORMAT
+from gm_hub.logic import month
 from gm_hub.logic.errors import ValidationError
+from gm_hub.settings import get_setting, read_settings, write_setting
 from gm_hub.ui.theme import COLORS as C
 from gm_hub.ui.theme import THEME
 
@@ -42,6 +44,14 @@ YELLOW_SOFT = C["yellow_soft"]
 # а не растянутый картинкой. Шрифты в пунктах Tk масштабирует сам, а размеры
 # в пикселях (отступы, ширина столбцов) пересчитывает функция px().
 SCALE = 1.0
+# «Крупный текст» (настройка в профиле): шрифты и отступы больше на 15 %.
+LARGE_TEXT = read_settings().get("large_text") is True
+ZOOM = 1.15 if LARGE_TEXT else 1.0
+
+
+def size(points: int) -> int:
+    """Размер шрифта с учётом настройки «Крупный текст»."""
+    return round(points * ZOOM)
 
 
 def px(value):
@@ -59,12 +69,15 @@ def px(value):
 
 
 # Размеры как в макетах Figma: основной текст 15 px, подписи 13 px.
-FONT = ("Segoe UI", 11)
-FONT_BOLD = ("Segoe UI Semibold", 11)
-FONT_SMALL = ("Segoe UI", 10)
-FONT_SMALL_BOLD = ("Segoe UI Semibold", 10)
-FONT_LOGO = ("Georgia", 15, "bold")
-FONT_TITLE = ("Georgia", 20, "bold")
+FONT = ("Segoe UI", size(11))
+FONT_BOLD = ("Segoe UI Semibold", size(11))
+FONT_SMALL = ("Segoe UI", size(10))
+FONT_SMALL_BOLD = ("Segoe UI Semibold", size(10))
+FONT_LOGO = ("Georgia", size(15), "bold")
+FONT_TITLE = ("Georgia", size(20), "bold")
+FONT_HEADING = ("Georgia", size(13), "bold")  # «Сессии Мастера: Агыг»
+FONT_NAME = ("Georgia", size(15), "bold")  # имя в карточке персонажа
+FONT_NUMBER = ("Georgia", size(24), "bold")  # числа в «Статистике»
 
 
 def setup_style(root: tk.Tk) -> None:
@@ -74,7 +87,8 @@ def setup_style(root: tk.Tk) -> None:
         root: Главное окно.
     """
     global SCALE
-    SCALE = root.winfo_fpixels("1i") / 96  # 96 точек на дюйм — это масштаб 100 %
+    # 96 точек на дюйм — это масштаб 100 %; «Крупный текст» увеличивает ещё
+    SCALE = root.winfo_fpixels("1i") / 96 * ZOOM
     root.configure(bg=BG)
     # Меняем стандартные шрифты Tk, а не option_add("*Font"):
     # иначе шрифт из базы опций перебивает шрифты стилей.
@@ -672,13 +686,24 @@ class Banner(ttk.Frame):
             "<Configure>", lambda e: self.text.config(wraplength=e.width - px(60))
         )
 
-    def show(self, message: str, kind: str = "error") -> None:
+    hide_job = None  # отложенное скрытие зелёной плашки
+
+    def show(self, message: str, kind: str = "error", auto_hide: bool = True) -> None:
         """Показывает плашку.
+
+        Зелёное сообщение об успехе само исчезает через 4 секунды, красная
+        ошибка остаётся, пока её не исправят.
 
         Args:
             message: Текст сообщения.
             kind: «error» или «ok».
+            auto_hide: Скрыть ли зелёную плашку автоматически.
         """
+        if self.hide_job:
+            self.after_cancel(self.hide_job)
+            self.hide_job = None
+        if kind == "ok" and auto_hide:
+            self.hide_job = self.after(4000, self.hide)
         icon, bg, fg, style = self.KINDS[kind]
         if self.prefix:
             ttk.Style(self).configure(self.prefix + style, background=PAGE)
@@ -691,7 +716,148 @@ class Banner(ttk.Frame):
 
     def hide(self) -> None:
         """Скрывает плашку."""
+        self.hide_job = None
         self.pack_forget()
+
+
+class Tooltip:
+    """Всплывающая подсказка: появляется, если задержать мышь над виджетом."""
+
+    def __init__(self, widget, text: str):
+        """Привязывает подсказку к виджету.
+
+        Args:
+            widget: Виджет, над которым показывать подсказку.
+            text: Текст подсказки.
+        """
+        self.widget = widget
+        self.text = text
+        self.window = None
+        self.job = None
+        widget.bind("<Enter>", self.schedule, add="+")
+        widget.bind("<Leave>", self.hide, add="+")
+        widget.bind("<ButtonPress>", self.hide, add="+")
+
+    def schedule(self, _event=None) -> None:
+        """Показывает подсказку через полсекунды, если мышь не ушла."""
+        self.hide()
+        self.job = self.widget.after(500, self.show)
+
+    def show(self) -> None:
+        """Рисует подсказку рядом с курсором."""
+        self.job = None
+        if not self.widget.winfo_exists():
+            return
+        x = self.widget.winfo_pointerx() + px(12)
+        y = self.widget.winfo_pointery() + px(18)
+        self.window = tk.Toplevel(self.widget)
+        self.window.wm_overrideredirect(True)  # без рамки и заголовка
+        self.window.wm_geometry(f"+{x}+{y}")
+        tk.Label(
+            self.window,
+            text=self.text,
+            bg=HEAD_BG,
+            fg="white",
+            font=FONT_SMALL,
+            justify="left",
+            wraplength=px(280),
+            padx=px(8),
+            pady=px(4),
+        ).pack()
+
+    def hide(self, _event=None) -> None:
+        """Убирает подсказку."""
+        if self.job:
+            self.widget.after_cancel(self.job)
+            self.job = None
+        if self.window:
+            self.window.destroy()
+            self.window = None
+
+
+class DatePicker(tk.Toplevel):
+    """Небольшой календарь: щелчок по дню подставляет дату в поле «Дата»."""
+
+    def __init__(self, entry):
+        """Открывает календарь рядом с полем.
+
+        Args:
+            entry: Поле даты «ДД.ММ.ГГГГ»; месяц берётся из уже введённой даты.
+        """
+        super().__init__(entry, bg=BG, padx=px(10), pady=px(8))
+        self.entry = entry
+        self.title("Выбор даты")
+        self.resizable(False, False)
+        self.transient(entry.winfo_toplevel())
+        try:
+            shown = datetime.strptime(entry.get(), "%d.%m.%Y").date()
+        except ValueError:
+            shown = month.today()
+        self.year, self.month = shown.year, shown.month
+        head = tk.Frame(self, bg=BG)
+        head.pack(fill="x")
+        link(head, "‹", lambda: self.turn(-1), color=INK).pack(side="left")
+        self.caption = tk.Label(head, bg=BG, fg=INK, font=FONT_BOLD)
+        self.caption.pack(side="left", expand=True)
+        link(head, "›", lambda: self.turn(1), color=INK).pack(side="right")
+        self.grid_box = tk.Frame(self, bg=BG)
+        self.grid_box.pack(pady=px((6, 0)))
+        self.draw()
+        x = entry.winfo_rootx()
+        y = entry.winfo_rooty() + entry.winfo_height() + px(4)
+        self.geometry(f"+{x}+{y}")
+        self.bind("<Escape>", lambda e: self.destroy())
+        self.grab_set()
+        self.focus_set()
+
+    def turn(self, delta: int) -> None:
+        """Стрелки ‹ › — предыдущий или следующий месяц."""
+        self.year, self.month = month.shift_month(self.year, self.month, delta)
+        self.draw()
+
+    def draw(self) -> None:
+        """Рисует дни месяца; прошедшие дни выбрать нельзя."""
+        self.caption.config(text=month.title(self.year, self.month))
+        for child in self.grid_box.winfo_children():
+            child.destroy()
+        for column, name in enumerate(month.WEEKDAYS):
+            tk.Label(
+                self.grid_box, text=name, bg=BG, fg=MUTED, font=FONT_SMALL, width=4
+            ).grid(row=0, column=column)
+        today = month.today()
+        weeks = month.month_grid(self.year, self.month)
+        for row, week in enumerate(weeks, start=1):
+            for column, day in enumerate(week):
+                if day is None:
+                    continue
+                past = day < today
+                label = tk.Label(
+                    self.grid_box,
+                    text=day.day,
+                    width=4,
+                    pady=px(3),
+                    bg=GREEN_SOFT if day == today else BG,
+                    fg=MUTED if past else INK,
+                    font=FONT_BOLD if day == today else FONT,
+                    cursor="" if past else "hand2",
+                )
+                label.grid(row=row, column=column, padx=1, pady=1)
+                if not past:
+                    label.bind("<Button-1>", lambda e, d=day: self.pick(d))
+                    label.bind("<Enter>", lambda e, w=label: w.config(bg=ACCENT_SOFT))
+                    label.bind(
+                        "<Leave>",
+                        lambda e, w=label, d=day: w.config(
+                            bg=GREEN_SOFT if d == today else BG
+                        ),
+                    )
+
+    def pick(self, day) -> None:
+        """Подставляет выбранную дату в поле и закрывает календарь."""
+        self.entry.delete(0, "end")
+        self.entry.insert(0, day.strftime("%d.%m.%Y"))
+        self.destroy()
+        self.entry.focus_set()
 
 
 class ChoiceCards(ttk.Frame):
@@ -730,7 +896,7 @@ class ChoiceCards(ttk.Frame):
                 padx=px((0, 8)) if index % self.columns < self.columns - 1 else 0,
                 pady=px((0, 8)),
             )
-            mark = tk.Label(box, font=("Segoe UI", 11), bg=BG)
+            mark = tk.Label(box, font=FONT, bg=BG)
             mark.pack(side="left", padx=px((0, 8)))
             texts = tk.Frame(box, bg=BG)
             texts.pack(side="left", fill="x")
@@ -810,10 +976,10 @@ class MainFrame(ttk.Frame):
         )
         links = ttk.Frame(user, style="Head.TFrame")
         links.pack(anchor="e")
-        role = "Мастер" if app.user["role"] == "GM" else "Игрок"
-        ttk.Label(links, text=role, style="HeadSmall.TLabel").pack(side="left")
+        # роль видна в подписи под названием («Кабинет Мастера»)
         theme_text = "Светлая тема" if THEME == "dark" else "Тёмная тема"
         for text, command in (
+            ("Справка", app.show_help),
             (theme_text, app.toggle_theme),
             ("Профиль", app.show_profile),
             ("Выйти", app.logout),
@@ -827,7 +993,7 @@ class MainFrame(ttk.Frame):
         self.tab_buttons = []
         self.tab_titles = [title for title, _ in tabs]
         bar = ttk.Frame(header, style="Head.TFrame")
-        bar.pack(side="left", anchor="s", padx=px((48, 0)))
+        bar.pack(side="left", anchor="s", padx=px((28, 0)))
 
         # Строка итогов внизу окна (как в образцах): белая, над ней линия.
         footer = ttk.Frame(self, padding=px((16, 6)))
@@ -857,10 +1023,17 @@ class MainFrame(ttk.Frame):
             tab = tab_class(body, app)
             tab.grid(row=0, column=0, sticky="nsew")
             self.tabs.append(tab)
-        # Ctrl+S сохраняет форму на открытой вкладке (если на ней есть форма).
+        # Горячие клавиши: Ctrl+S, Ctrl+N, Ctrl+F, Delete и F1 (справка).
         # Сравниваем код клавиши, чтобы работало и в русской раскладке.
         self.bind_all("<Control-KeyPress>", self.on_ctrl_key)
+        self.bind_all("<Delete>", self.on_delete_key)
+        self.bind_all("<F1>", lambda e: app.show_help())
         fix_corners(self)
+        # Открывается вкладка, на которой пользователь был в прошлый раз.
+        self.tab_key = "tab_" + app.user["role"]
+        saved = get_setting(self.tab_key, 0)
+        if isinstance(saved, int) and 0 <= saved < len(self.tabs):
+            self.current.set(saved)
         self.show_tab()
         self.poll_id = None
         self.poll_badges()
@@ -877,14 +1050,30 @@ class MainFrame(ttk.Frame):
         """Останавливает обновление вкладок и закрывает окно кабинета."""
         if self.poll_id is not None:
             self.after_cancel(self.poll_id)
+        # горячие клавиши относятся только к этому кабинету
+        for sequence in ("<Control-KeyPress>", "<Delete>", "<F1>"):
+            self.unbind_all(sequence)
         super().destroy()
 
     def on_ctrl_key(self, event) -> None:
-        """Обрабатывает Ctrl+S: вызывает on_save открытой вкладки."""
-        if event.keycode == 83:  # клавиша S
-            tab = self.tabs[self.current.get()]
-            if hasattr(tab, "on_save"):
-                tab.on_save()
+        """Ctrl+S — сохранить, Ctrl+N — новая запись, Ctrl+F — к поиску."""
+        tab = self.tabs[self.current.get()]
+        if event.keycode == 83 and hasattr(tab, "on_save"):  # S
+            tab.on_save()
+        elif event.keycode == 78 and hasattr(tab, "on_new"):  # N
+            tab.on_new()
+        elif event.keycode == 70 and hasattr(tab, "search"):  # F
+            tab.search.focus_set()
+            tab.search.select_range(0, "end")
+
+    def on_delete_key(self, event) -> None:
+        """Delete удаляет выбранную строку (в полях ввода — обычное удаление)."""
+        if event.widget.winfo_class() in ("TEntry", "Text", "TCombobox", "TSpinbox"):
+            return
+        tab = self.tabs[self.current.get()]
+        action = getattr(tab, "on_delete", None) or getattr(tab, "on_withdraw", None)
+        if action:
+            action()
 
     def show_tab(self, index: int | None = None) -> None:
         """Показывает вкладку и перечитывает её данные из БД.
@@ -903,6 +1092,10 @@ class MainFrame(ttk.Frame):
                 self.current.set(self.shown)
                 return
         self.shown = new
+        try:
+            write_setting(self.tab_key, new)
+        except OSError:
+            pass  # файл настроек недоступен — просто не запоминаем вкладку
         tab = self.tabs[new]
         tab.tkraise()
         self.set_status("")

@@ -20,6 +20,7 @@ def load_ui():
         "profile_window",
         "gm_window",
         "player_window",
+        "help_window",
         "app",
     ]
     module = None

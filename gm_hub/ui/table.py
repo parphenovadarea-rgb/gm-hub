@@ -44,6 +44,7 @@ from gm_hub.ui.common import (
     RED_SOFT,
     YELLOW,
     YELLOW_SOFT,
+    Tooltip,
 )
 
 ROW_LINE = C["row_line"]  # разделитель строк
@@ -104,6 +105,56 @@ class Pill(tk.Canvas):
         self.create_text(width // 2, height // 2, text=text, fill=color, font=font)
 
 
+class SeatsBar(tk.Canvas):
+    """Полоска заполненности мест: зеленеет по мере записи, полная — тёмная."""
+
+    def __init__(self, parent, taken: int, total: int, bg: str = BG, width: int = 70):
+        """Рисует полоску.
+
+        Args:
+            parent: Родительский виджет.
+            taken: Сколько мест занято (подтверждённые заявки).
+            total: Лимит мест.
+            bg: Цвет фона вокруг полоски.
+            width: Ширина полоски для экрана 100 %.
+        """
+        w, h = px(width), px(8)
+        super().__init__(parent, width=w, height=h, bg=bg, highlightthickness=0, bd=0)
+        self._round(0, w, h, LINE)  # пустая дорожка
+        filled = round(w * min(taken, total) / total) if total else 0
+        color = C["seat_taken"] if taken >= total else C["green_text"]
+        if filled:
+            self._round(0, max(filled, h), h, color)
+        Tooltip(self, f"Занято {taken} из {total} мест")
+
+    def _round(self, x0, x1, h, color) -> None:
+        """Скруглённый прямоугольник: два круга по краям и прямоугольник."""
+        self.create_oval(x0, 0, x0 + h, h - 1, fill=color, outline=color)
+        self.create_oval(x1 - h, 0, x1 - 1, h - 1, fill=color, outline=color)
+        self.create_rectangle(x0 + h // 2, 0, x1 - h // 2, h - 1, fill=color, width=0)
+
+
+def hint_for(text: str):
+    """Подсказка при наведении для метки в таблице (или None).
+
+    Args:
+        text: Текст метки, например «СКОРО» или «№1 в очереди».
+    """
+    hints = {
+        "СКОРО": "До начала меньше 3 дней — скоро запись закроется",
+        "новое": "Решение Мастера принято после вашего прошлого просмотра",
+        "На рассмотрении": "Мастер ещё не принял решение по заявке",
+    }
+    if text in hints:
+        return hints[text]
+    if "в очереди" in text:
+        return (
+            "Мест нет: заявка в листе ожидания. Её подтвердят, когда место "
+            "освободится"
+        )
+    return None
+
+
 class RowTable(ttk.Frame):
     """Таблица или список строк в стиле макетов.
 
@@ -116,7 +167,9 @@ class RowTable(ttk.Frame):
         selected: id выбранной строки или None.
     """
 
-    def __init__(self, parent, columns, header=True, on_select=None, border=True):
+    def __init__(
+        self, parent, columns, header=True, on_select=None, border=True, on_double=None
+    ):
         """Создаёт пустую таблицу.
 
         Args:
@@ -125,12 +178,14 @@ class RowTable(ttk.Frame):
             header: Показывать ли строку заголовков.
             on_select: Функция, вызываемая с id строки при её выборе.
             border: Рамка вокруг таблицы (внутри карточки не нужна).
+            on_double: Функция, вызываемая с id строки при двойном щелчке.
         """
         super().__init__(
             parent, style="Card.TFrame" if border else "TFrame", padding=px(5)
         )
         self.columns = columns
         self.on_select = on_select
+        self.on_double = on_double
         self.selected = None
         self.rows = {}  # id -> словарь: подложка, ячейки, линия, цвет, сортировка
         self.sort_column = None
@@ -273,7 +328,7 @@ class RowTable(ttk.Frame):
             fonts = {"bold": FONT_BOLD, "small": FONT_SMALL_BOLD, "sub": FONT_SMALL}
             font = fonts.get(kind, FONT)
             color = MUTED if kind in ("muted", "small", "sub") else INK
-            return tk.Label(
+            label = tk.Label(
                 parent,
                 text=cell[1],
                 bg=bg,
@@ -283,16 +338,25 @@ class RowTable(ttk.Frame):
                 justify="left",
                 wraplength=px(max(width, 60)),
             )
+            if hint_for(cell[1]):
+                Tooltip(label, hint_for(cell[1]))
+            return label
         if kind == "pill":
-            return Pill(parent, cell[1], cell[2], bg)
+            pill = Pill(parent, cell[1], cell[2], bg)
+            if hint_for(cell[1]):
+                Tooltip(pill, hint_for(cell[1]))
+            return pill
         if kind == "seats":
             return self._seats(parent, cell[1], cell[2], bg)
         if kind == "buttons":
+            # кнопка: (текст, стиль, функция, активна[, подсказка если неактивна])
             box = tk.Frame(parent, bg=bg)
-            for text, style, command, enabled in cell[1]:
+            for text, style, command, enabled, *hint in cell[1]:
                 button = ttk.Button(box, text=text, style=style, command=command)
                 if not enabled:
                     button.state(["disabled"])
+                    if hint:
+                        Tooltip(button, hint[0])
                 button.pack(side="left", padx=px((0, 6)))
             return box
         box = tk.Frame(parent, bg=bg)  # line или stack
@@ -308,15 +372,9 @@ class RowTable(ttk.Frame):
         return box
 
     def _seats(self, parent, taken: int, free: int, bg):
-        """Квадратики занятых и свободных мест и подпись, как в макете."""
+        """Полоска заполненности мест и подпись «3 из 4» / «мест нет»."""
         box = tk.Frame(parent, bg=bg)
-        if taken + free <= 8:
-            tk.Label(box, text="■" * taken, fg=C["seat_taken"], bg=bg, font=FONT).pack(
-                side="left"
-            )
-            tk.Label(box, text="□" * free, fg=C["seat_free"], bg=bg, font=FONT).pack(
-                side="left"
-            )
+        SeatsBar(box, taken, taken + free, bg).pack(side="left")
         text = f"{free} из {taken + free}" if free > 0 else "мест нет"
         tk.Label(
             box,
@@ -324,7 +382,7 @@ class RowTable(ttk.Frame):
             bg=bg,
             fg=C["seat_taken"] if free <= 0 else INK,
             font=FONT_BOLD if free <= 0 else FONT,
-        ).pack(side="left", padx=px((6, 0)))
+        ).pack(side="left", padx=px((8, 0)))
         return box
 
     def _bind_click(self, widget, row_id) -> None:
@@ -332,6 +390,8 @@ class RowTable(ttk.Frame):
         if isinstance(widget, ttk.Button):
             return
         widget.bind("<Button-1>", lambda e: self.select(row_id))
+        if self.on_double:
+            widget.bind("<Double-Button-1>", lambda e: self.on_double(row_id))
         for child in widget.winfo_children():
             self._bind_click(child, row_id)
 

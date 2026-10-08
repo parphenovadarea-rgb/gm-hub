@@ -17,7 +17,7 @@ STATUS_NAMES = {
 # Общая часть запроса: заявка + сессия + персонаж + игрок.
 SIGNUPS_QUERY = """
     SELECT s.*, g.title AS game_title, g.scheduled_at, g.status AS game_status,
-        g.summary AS game_summary,
+        g.summary AS game_summary, g.gm_id,
         c.name AS character_name, c.class AS character_class,
         c.level AS character_level, u.full_name AS player_name,
         (SELECT full_name FROM Users WHERE id = g.gm_id) AS gm_name
