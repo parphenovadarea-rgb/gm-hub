@@ -50,8 +50,8 @@ class FeaturesTest(unittest.TestCase):
         signups.confirm_signup(self.conn, self.gm, signup)
         return signup
 
-    def test_queue_when_full(self):
-        """Мест нет — заявка на рассмотрении получает номер в очереди."""
+    def test_16_queue_when_full(self):
+        """Сценарий 16: мест нет — заявка получает номер в листе ожидания."""
         first = signups.create_signup(self.conn, self.p1, self.game, self.c1)
         self.assertEqual(signups.queue_positions(self.conn, self.game), {})
         signups.confirm_signup(self.conn, self.gm, first)
@@ -75,8 +75,8 @@ class FeaturesTest(unittest.TestCase):
         with self.assertRaises(AccessError):
             games.save_summary(self.conn, self.gm2, past, "Чужие итоги")
 
-    def test_level_up_once(self):
-        """Уровень участников растёт на 1 один раз, но не выше 20."""
+    def test_17_level_up_once(self):
+        """Сценарий 17: уровень участников растёт на 1 один раз, не выше 20."""
         past = make_past_game(self.conn, self.gm["id"])
         with self.conn:
             for char in (self.c1, self.c2):

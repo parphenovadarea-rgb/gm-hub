@@ -50,8 +50,8 @@ class SignupsTest(unittest.TestCase):
             signups.create_signup(self.conn, self.p1, self.game, self.char1)
         self.assertEqual(len(signups.list_for_game(self.conn, self.game)), 1)
 
-    def test_one_player_one_character(self):
-        """Второй персонаж того же Игрока не записывается на ту же сессию."""
+    def test_15_one_player_one_character(self):
+        """Сценарий 15: второй персонаж того же Игрока на ту же сессию — ошибка."""
         signups.create_signup(self.conn, self.p1, self.game, self.char1)
         other = characters.save_character(self.conn, self.p1, "Корвин", "", "", 2, "")
         with self.assertRaises(ValidationError):
