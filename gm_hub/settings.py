@@ -43,6 +43,17 @@ def write_setting(key: str, value, path=SETTINGS_PATH) -> None:
         json.dump(data, file, ensure_ascii=False)
 
 
+def get_setting(key: str, default=None, path=SETTINGS_PATH):
+    """Возвращает одну настройку (или default, если её ещё нет).
+
+    Args:
+        key: Имя настройки, например «large_text».
+        default: Значение по умолчанию.
+        path: Путь к settings.json.
+    """
+    return read_settings(path).get(key, default)
+
+
 def recent_logins(path=SETTINGS_PATH) -> list:
     """Возвращает логины, с которыми входили на этом компьютере (новые первыми)."""
     logins = read_settings(path).get("logins", [])

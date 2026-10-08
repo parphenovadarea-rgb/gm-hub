@@ -10,7 +10,9 @@ from gm_hub.logic import auth
 from gm_hub.logic.errors import AccessError, ValidationError
 from gm_hub.ui.auth_windows import LoginFrame, RegisterFrame
 from gm_hub.ui.common import ScrollArea, fix_corners, px, setup_style
+from gm_hub.settings import get_setting, write_setting
 from gm_hub.ui.gm_window import GMFrame
+from gm_hub.ui.help_window import HelpWindow
 from gm_hub.ui.player_window import PlayerFrame
 from gm_hub.ui.profile_window import ProfileWindow
 from gm_hub.ui.theme import THEME, save_theme
@@ -77,9 +79,12 @@ class App(tk.Tk):
                 Карточка стоит по центру окна и не растягивается, даже если
                 окно развернуть на весь экран. None — экран на всё окно.
         """
+        self.save_window()
         if self.screen is not None:
             self.screen.destroy()
         self.title(f"Game Master Hub — {title}")
+        if self.state() == "zoomed":
+            self.state("normal")
         width, height = (int(n) for n in size.split("x"))
         self.geometry(f"{px(width)}x{px(height)}")
         page = self.scroll.page
@@ -113,18 +118,55 @@ class App(tk.Tk):
             self.show(GMFrame, "Мастер", "1360x780", "1360x640")
         else:
             self.show(PlayerFrame, "Игрок", "1420x780", "1240x640")
+        # Размер и положение окна кабинета — как в прошлый раз.
+        self.window_key = "window_" + user["role"]
+        saved = get_setting(self.window_key)
+        if isinstance(saved, dict):
+            if saved.get("zoomed"):
+                self.state("zoomed")
+            elif saved.get("geometry"):
+                self.geometry(saved["geometry"])
+
+    window_key = None  # имя настройки с размером окна открытого кабинета
+
+    def save_window(self) -> None:
+        """Запоминает размер и положение окна кабинета перед его закрытием."""
+        if self.window_key is None:
+            return
+        value = {"geometry": self.geometry(), "zoomed": self.state() == "zoomed"}
+        try:
+            write_setting(self.window_key, value)
+        except OSError:
+            pass  # файл настроек недоступен — окно откроется обычного размера
+        self.window_key = None
+
+    def restart_view(self) -> None:
+        """Пересоздаёт окно (смена темы или крупного текста) без повторного входа.
+
+        Цвета и шрифты задаются при создании виджетов, поэтому окно
+        закрывается, а main.py создаёт его заново с новыми настройками.
+        """
+        self.save_window()
+        self.restart = True
+        self.destroy()
 
     def toggle_theme(self) -> None:
-        """Переключает светлую и тёмную тему.
-
-        Цвета задаются при создании виджетов, поэтому окно закрывается,
-        а main.py создаёт его заново уже с новой темой (вход не нужен).
-        """
+        """Переключает светлую и тёмную тему."""
         if not self.can_leave():
             return
         save_theme("light" if THEME == "dark" else "dark")
-        self.restart = True
-        self.destroy()
+        self.restart_view()
+
+    def set_large_text(self, on: bool) -> None:
+        """Включает или выключает крупный текст (настройка в «Профиле»)."""
+        if not self.can_leave():
+            return
+        write_setting("large_text", bool(on))
+        self.restart_view()
+
+    def show_help(self) -> None:
+        """Открывает справку по роли пользователя (F1)."""
+        HelpWindow(self, self.user["role"] if self.user else "PLAYER")
 
     def can_leave(self) -> bool:
         """Спрашивает о несохранённых изменениях на открытом экране.
@@ -137,6 +179,7 @@ class App(tk.Tk):
     def on_close(self) -> None:
         """Закрывает программу (крестик окна), не теряя несохранённое."""
         if self.can_leave():
+            self.save_window()
             self.destroy()
 
     def show_profile(self) -> None:

@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from gm_hub.logic import auth
-from gm_hub.ui.common import BG, field, px
+from gm_hub.ui.common import BG, LARGE_TEXT, field, px
 
 
 class ProfileWindow(tk.Toplevel):
@@ -52,6 +52,14 @@ class ProfileWindow(tk.Toplevel):
         ttk.Label(
             self, text="Новый пароль можно не заполнять.", style="Small.TLabel"
         ).pack(anchor="w", pady=px((4, 0)))
+        # Настройка вида для этого компьютера: окно пересоздаётся сразу.
+        self.large_text = tk.BooleanVar(value=LARGE_TEXT)
+        ttk.Checkbutton(
+            self,
+            text=" Крупный текст (шрифт и отступы больше на 15 %)",
+            variable=self.large_text,
+            command=self.on_large_text,
+        ).pack(anchor="w", pady=px((12, 0)))
 
         buttons = ttk.Frame(self)
         buttons.pack(fill="x", pady=px((14, 0)))
@@ -64,6 +72,11 @@ class ProfileWindow(tk.Toplevel):
         ttk.Button(
             buttons, text="Сохранить", style="Accent.TButton", command=self.on_save
         ).pack(side="right")
+
+    def on_large_text(self):
+        """Включает или выключает крупный текст и пересоздаёт окно."""
+        self.destroy()
+        self.app.set_large_text(self.large_text.get())
 
     def value(self, name: str) -> str:
         """Возвращает текст поля по его подписи."""

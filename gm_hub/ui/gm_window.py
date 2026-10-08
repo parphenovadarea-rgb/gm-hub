@@ -9,27 +9,40 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from gm_hub.config import to_short, to_show
-from gm_hub.logic import characters, dice, games, notes, signups
+from gm_hub.logic import characters, dice, games, month, notes, signups
 from gm_hub.logic.errors import ValidationError
 from gm_hub.ui.common import (
     px,
     ask_text,
+    BG,
+    FONT,
+    FONT_BOLD,
+    FONT_NAME,
+    FONT_NUMBER,
+    FONT_SMALL,
+    GREEN_SOFT,
     GREEN_TEXT,
+    INK,
+    LINE,
+    MUTED,
     PAGE,
     Banner,
+    DatePicker,
     FormGuard,
     MainFrame,
+    Tooltip,
     card,
     field,
     get_text,
     is_soon,
+    link,
     make_text,
     segmented,
     set_text,
     short_name,
 )
 from gm_hub.ui.mask import DATE_MASK, TIME_MASK, MaskedEntry
-from gm_hub.ui.table import STATUS_PILL, Pill, RowTable
+from gm_hub.ui.table import STATUS_PILL, Pill, RowTable, SeatsBar
 
 
 def free_of(game) -> int:
@@ -55,6 +68,7 @@ class GMFrame(MainFrame):
                 ("Сюжетный блокнот", GameNotesTab),
                 ("База мира", WorldTab),
                 ("Статистика", StatsTab),
+                ("Календарь", CalendarTab),
             ],
         )
 
@@ -155,7 +169,19 @@ class ScheduleTab(FormGuard, Tab):
         date_box.pack(side="left", fill="x", expand=True, padx=px((0, 8)))
         time_box.pack(side="left", fill="x", expand=True)
         # вводятся только цифры, точки и двоеточие ставятся сами
-        field(date_box, "Дата * (ДД.ММ.ГГГГ)")
+        date_head = ttk.Frame(date_box)
+        date_head.pack(fill="x", pady=px((7, 2)))
+        ttk.Label(date_head, text="Дата * (ДД.ММ.ГГГГ)", style="Field.TLabel").pack(
+            side="left"
+        )
+        calendar_link = link(
+            date_head,
+            "календарь",
+            lambda: DatePicker(self.date_entry),
+            color=GREEN_TEXT,
+        )
+        calendar_link.config(font=FONT_SMALL)
+        calendar_link.pack(side="right")
         self.date_entry = MaskedEntry(date_box, DATE_MASK, width=14)
         self.date_entry.pack(fill="x")
         field(time_box, "Время * (ЧЧ:ММ)")
@@ -366,7 +392,7 @@ class SignupsTab(Tab):
 
         info = card(self, "Карточка персонажа", "только чтение")
         info.master.pack(side="right", fill="y", padx=px((16, 0)))
-        self.char_name = ttk.Label(info, font=("Georgia", 15, "bold"), width=19)
+        self.char_name = ttk.Label(info, font=FONT_NAME, width=19)
         self.char_name.pack(anchor="w")
         self.char_owner = ttk.Label(info, style="Muted.TLabel")
         self.char_owner.pack(anchor="w", pady=px((0, 10)))
@@ -441,7 +467,7 @@ class SignupsTab(Tab):
         self.char_story.config(text=(char["backstory"] if char else "") or "—")
 
     def show_seats(self, game) -> None:
-        """Показывает свободные места квадратиками: «■■■□□ Свободно: 2 из 5»."""
+        """Показывает места полоской заполненности: «▬▬▬ Свободно: 2 из 5»."""
         for child in self.seats.winfo_children():
             child.destroy()
         if game is None:
@@ -450,11 +476,9 @@ class SignupsTab(Tab):
             ).pack()
             return
         free = free_of(game)
-        if game["max_players"] <= 8:
-            squares = "■" * game["confirmed"] + "□" * free
-            tk.Label(
-                self.seats, text=squares, fg=GREEN_TEXT, bg=PAGE, font=("Segoe UI", 12)
-            ).pack(side="left", padx=px((0, 10)))
+        SeatsBar(self.seats, game["confirmed"], game["max_players"], PAGE, 110).pack(
+            side="left", padx=px((0, 10))
+        )
         ttk.Label(
             self.seats,
             text=f"Свободно: {free} из {game['max_players']}",
@@ -497,6 +521,9 @@ class SignupsTab(Tab):
                             "Small.Accent.TButton",
                             lambda i=row["id"]: self.on_confirm(i),
                             free > 0,
+                            "Мест нет: отклоните заявку, дождитесь, пока место "
+                            "освободится, или увеличьте лимит во вкладке "
+                            "«Расписание»",
                         ),
                         (
                             "Отклонить",
@@ -1055,7 +1082,7 @@ class StatsTab(Tab):
             box.master.grid(
                 row=0, column=index, sticky="nsew", padx=px((0, 12)) if index < 3 else 0
             )
-            self.values[key] = ttk.Label(box, font=("Georgia", 24, "bold"))
+            self.values[key] = ttk.Label(box, font=FONT_NUMBER)
             self.values[key].pack(anchor="w")
             ttk.Label(box, text=caption, style="Muted.TLabel").pack(anchor="w")
         numbers.columnconfigure((0, 1, 2, 3), weight=1, uniform="card")
@@ -1104,3 +1131,131 @@ class StatsTab(Tab):
                 ],
             )
         self.status("Статистика считается по всем вашим сессиям")
+
+
+class CalendarTab(Tab):
+    """Вкладка «Календарь»: сессии Мастера по дням месяца."""
+
+    SHOWN = 3  # сколько сессий помещается в клетку дня
+
+    def __init__(self, parent, app):
+        """Создаёт заголовок с переключением месяцев и сетку дней.
+
+        Args:
+            parent: Область вкладок.
+            app: Приложение.
+        """
+        super().__init__(parent, app)
+        today = month.today()
+        self.year, self.month = today.year, today.month
+        top = ttk.Frame(self, style="Page.TFrame")
+        top.pack(fill="x")
+        ttk.Button(top, text="‹", width=3, command=lambda: self.turn(-1)).pack(
+            side="left"
+        )
+        self.caption = ttk.Label(
+            top, style="PageBold.TLabel", width=16, anchor="center"
+        )
+        self.caption.pack(side="left", padx=px(8))
+        ttk.Button(top, text="›", width=3, command=lambda: self.turn(1)).pack(
+            side="left"
+        )
+        ttk.Button(top, text="Сегодня", command=self.go_today).pack(
+            side="left", padx=px((12, 0))
+        )
+        ttk.Label(
+            top,
+            text="чёрным — предстоящие, серым — прошедшие; щелчок открывает сессию",
+            style="Page.TLabel",
+        ).pack(side="right")
+        self.grid_box = ttk.Frame(self, style="Page.TFrame")
+        self.grid_box.pack(fill="both", expand=True, pady=px((12, 0)))
+        for column in range(7):
+            self.grid_box.columnconfigure(column, weight=1, uniform="day")
+
+    def turn(self, delta: int) -> None:
+        """Кнопки ‹ › — предыдущий или следующий месяц."""
+        self.year, self.month = month.shift_month(self.year, self.month, delta)
+        self.refresh()
+
+    def go_today(self) -> None:
+        """Кнопка «Сегодня» — текущий месяц."""
+        today = month.today()
+        self.year, self.month = today.year, today.month
+        self.refresh()
+
+    def refresh(self):
+        """Рисует месяц: в каждом дне — его сессии по времени."""
+        self.caption.config(text=month.title(self.year, self.month))
+        for child in self.grid_box.winfo_children():
+            child.destroy()
+        for column, name in enumerate(month.WEEKDAYS):
+            ttk.Label(self.grid_box, text=name, style="Page.TLabel").grid(
+                row=0, column=column, sticky="w", padx=px(4)
+            )
+        sessions = self.my_games() + self.my_games("CLOSED")
+        by_day = month.games_by_day(sessions)
+        today = month.today()
+        weeks = month.month_grid(self.year, self.month)
+        count = 0
+        for row, week in enumerate(weeks, start=1):
+            self.grid_box.rowconfigure(row, weight=1, uniform="week")
+            for column, day in enumerate(week):
+                if day is None:
+                    continue
+                cell = tk.Frame(
+                    self.grid_box,
+                    bg=GREEN_SOFT if day == today else BG,
+                    highlightbackground=LINE,
+                    highlightthickness=1,
+                    padx=px(6),
+                    pady=px(4),
+                )
+                cell.grid(row=row, column=column, sticky="nsew", padx=1, pady=1)
+                tk.Label(
+                    cell,
+                    text=day.day,
+                    bg=cell["bg"],
+                    fg=INK,
+                    font=FONT_BOLD if day == today else FONT,
+                ).pack(anchor="w")
+                day_games = by_day.get(day, [])
+                count += len(day_games)
+                for game in day_games[: self.SHOWN]:
+                    time = game["scheduled_at"][11:]
+                    label = tk.Label(
+                        cell,
+                        text=f"{time} {game['title']}",
+                        bg=cell["bg"],
+                        fg=MUTED if game["status"] == "CLOSED" else INK,
+                        font=FONT_SMALL,
+                        anchor="w",
+                        justify="left",
+                        wraplength=px(160),
+                        cursor="hand2",
+                    )
+                    label.pack(fill="x")
+                    label.bind("<Button-1>", lambda e, g=game: self.open_game(g))
+                    Tooltip(
+                        label,
+                        f"{game['title']}\n{to_show(game['scheduled_at'])} · "
+                        f"занято {game['confirmed']} из {game['max_players']}",
+                    )
+                if len(day_games) > self.SHOWN:
+                    tk.Label(
+                        cell,
+                        text=f"ещё {len(day_games) - self.SHOWN}",
+                        bg=cell["bg"],
+                        fg=MUTED,
+                        font=FONT_SMALL,
+                    ).pack(anchor="w")
+        self.status(f"Сессий в этом месяце: {count}")
+
+    def open_game(self, game) -> None:
+        """Открывает сессию во вкладке «Расписание» для изменения."""
+        main = self.master.master
+        main.show_tab(0)
+        schedule = main.tabs[0]
+        schedule.period.set(game["status"])
+        schedule.refresh()
+        schedule.on_select(game["id"])
