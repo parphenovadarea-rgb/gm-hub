@@ -1,10 +1,16 @@
 """Общие настройки приложения."""
 
+import sys
 from datetime import datetime
 from pathlib import Path
 
-# Файл БД лежит в корне проекта рядом с main.py.
-DB_PATH = Path(__file__).resolve().parent.parent / "gm_hub.db"
+# Файл БД лежит в корне проекта рядом с main.py, а в собранной программе
+# (GameMasterHub.exe) — рядом с exe, чтобы данные сохранялись между запусками.
+if getattr(sys, "frozen", False):
+    APP_DIR = Path(sys.executable).resolve().parent
+else:
+    APP_DIR = Path(__file__).resolve().parent.parent
+DB_PATH = APP_DIR / "gm_hub.db"
 
 # Формат хранения даты и времени в БД (п. 4.3.2 ТЗ).
 DATETIME_FORMAT = "%Y-%m-%d %H:%M"
