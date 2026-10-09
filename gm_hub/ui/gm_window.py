@@ -131,15 +131,14 @@ class ScheduleTab(FormGuard, Tab):
         top.pack(fill="x")
         self.period = tk.StringVar(value="PLANNED")
         segmented(top, self.PERIODS, self.period, self.refresh).pack(side="left")
-        ttk.Button(
+        # «Удалить» видна только на вкладке «Отменённые» (см. refresh)
+        self.delete_button = ttk.Button(
             top, text="Удалить", style="Danger.TButton", width=0, command=self.on_delete
-        ).pack(side="right")
-        ttk.Button(
-            top, text="Отменить сессию", style="Danger.TButton", command=self.on_cancel
-        ).pack(side="right", padx=px(6))
-        ttk.Button(top, text="Копировать", width=0, command=self.on_copy).pack(
-            side="right", padx=px((0, 6))
         )
+        self.cancel_button = ttk.Button(
+            top, text="Отменить сессию", style="Danger.TButton", command=self.on_cancel
+        )
+        self.cancel_button.pack(side="right", padx=px((6, 0)))
         ttk.Button(
             top, text="+ Новая сессия", style="Accent.TButton", command=self.on_new
         ).pack(side="right")
@@ -232,26 +231,12 @@ class ScheduleTab(FormGuard, Tab):
         if self.can_leave():
             self.clear_form()
 
-    def on_copy(self):
-        """Кнопка «Копировать»: новая сессия по образцу выбранной.
-
-        Название, описание и лимит мест берутся из выбранной сессии (например,
-        «Шахта Эхо, ч. 4» → «ч. 5»), дату и время Мастер вводит заново.
-        """
-        game_id = self.selected_game()
-        if not self.can_leave():
-            return
-        game = games.get_game(self.app.conn, game_id)
-        self.clear_form()
-        self.form.title_label.config(text="Новая сессия (копия)")
-        self.title_entry.insert(0, game["title"])
-        set_text(self.description, game["description"])
-        self.max_players.set(game["max_players"])
-        self.remember()
-        self.date_entry.focus()
-
     def refresh(self):
         """Перечитывает сессии текущего Мастера из БД."""
+        if self.period.get() == "CANCELLED":
+            self.delete_button.pack(side="right", before=self.cancel_button)
+        else:
+            self.delete_button.pack_forget()
         hints = {
             "PLANNED": "Предстоящих сессий пока нет.\n"
             "Нажмите «+ Новая сессия», чтобы опубликовать первую игру.",
