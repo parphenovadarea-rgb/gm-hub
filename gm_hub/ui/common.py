@@ -1027,9 +1027,9 @@ class MainFrame(ttk.Frame):
             )
             button.pack(side="left")
             self.tab_buttons.append(button)
-            tab = tab_class(body, app)
-            tab.grid(row=0, column=0, sticky="nsew")
-            self.tabs.append(tab)
+            # на экран вкладка попадает в show_tab: скрытые вкладки не
+            # перерисовываются, поэтому окно работает быстрее
+            self.tabs.append(tab_class(body, app))
         # Горячие клавиши: Ctrl+S, Ctrl+N, Ctrl+F, Delete и F1 (справка).
         # Сравниваем код клавиши, чтобы работало и в русской раскладке.
         self.bind_all("<Control-KeyPress>", self.on_ctrl_key)
@@ -1098,13 +1098,15 @@ class MainFrame(ttk.Frame):
             if not self.tabs[self.shown].can_leave():
                 self.current.set(self.shown)
                 return
+        if self.shown is not None and new != self.shown:
+            self.tabs[self.shown].grid_remove()
         self.shown = new
         try:
             write_setting(self.tab_key, new)
         except OSError:
             pass  # файл настроек недоступен — просто не запоминаем вкладку
         tab = self.tabs[new]
-        tab.tkraise()
+        tab.grid(row=0, column=0, sticky="nsew")
         self.set_status("")
         tab.refresh()
         self.on_tab_shown()
