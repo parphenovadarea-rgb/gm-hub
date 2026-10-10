@@ -1,7 +1,8 @@
 """Светлая и тёмная темы оформления.
 
 Выбранная тема хранится в файле settings.json рядом с БД и читается при
-запуске. Модуль common берёт цвета из словаря COLORS этого модуля.
+запуске. Окна берут цвета через функцию c(), поэтому после смены темы
+новые окна сразу рисуются в новых цветах.
 """
 
 from gm_hub.settings import SETTINGS_PATH, read_settings, write_setting
@@ -101,3 +102,19 @@ def save_theme(theme: str, path=SETTINGS_PATH) -> None:
 
 THEME = load_theme()
 COLORS = DARK if THEME == "dark" else LIGHT
+
+
+def set_theme(theme: str) -> None:
+    """Включает тему в работающей программе (без сохранения в файл).
+
+    Args:
+        theme: «light» или «dark».
+    """
+    global THEME, COLORS
+    THEME = theme
+    COLORS = DARK if theme == "dark" else LIGHT
+
+
+def c(name: str) -> str:
+    """Возвращает цвет текущей темы по имени, например c("accent")."""
+    return COLORS[name]

@@ -1,5 +1,6 @@
-# Само приложение использует только стандартную библиотеку Python
-# (sqlite3, hashlib, tkinter). Ниже — инструменты разработки.
+# Само приложение использует стандартную библиотеку Python (sqlite3,
+# hashlib) и PySide6 (requirements.txt). Ниже — инструменты разработки.
+-r requirements.txt
 black==24.8.0
 flake8==7.1.1
 pre-commit==3.8.0
