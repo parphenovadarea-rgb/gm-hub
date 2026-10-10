@@ -1,9 +1,8 @@
 """Окно «Справка» (F1): короткая памятка для Мастера или Игрока."""
 
-import tkinter as tk
-from tkinter import ttk
+from PySide6.QtWidgets import QDialog
 
-from gm_hub.ui.common import BG, FONT, FONT_BOLD, INK, px
+from gm_hub.ui.common import button, hbox, label, vbox
 
 COMMON = [
     ("Горячие клавиши", [
@@ -13,7 +12,6 @@ COMMON = [
         "Ctrl+F — перейти к поиску на вкладке",
         "Delete — удалить выбранную строку (с подтверждением)",
         "Enter в форме сессии — сохранить, Esc — очистить форму",
-        "Shift + колесо мыши — прокрутить уменьшенное окно",
     ]),
     ("Удобства", [
         "Если задержать мышь над меткой («СКОРО», «№1 в очереди»), полоской мест "
@@ -88,37 +86,30 @@ HELP = {
 }
 
 
-class HelpWindow(tk.Toplevel):
+class HelpWindow(QDialog):
     """Отдельное окно со справкой по роли пользователя."""
 
     def __init__(self, app, role: str):
-        """Создаёт окно справки.
+        """Создаёт окно справки (Esc закрывает его).
 
         Args:
             app: Главное окно.
             role: «GM» или «PLAYER».
         """
-        super().__init__(app, bg=BG, padx=px(22), pady=px(16))
-        self.title("Справка")
-        self.transient(app)
+        super().__init__(app)
+        self.setWindowTitle("Справка")
+        layout = vbox(self, margins=(22, 16, 22, 16), spacing=3)
         title = "Справка для Мастера" if role == "GM" else "Справка для Игрока"
-        ttk.Label(self, text=title, style="Title.TLabel").pack(anchor="w")
+        layout.addWidget(label(title, "title"))
         for heading, lines in HELP[role] + COMMON:
-            tk.Label(self, text=heading, bg=BG, fg=INK, font=FONT_BOLD).pack(
-                anchor="w", pady=px((12, 2))
-            )
+            layout.addSpacing(10)
+            layout.addWidget(label(heading, "bold"))
             for line in lines:
-                tk.Label(
-                    self,
-                    text="•  " + line,
-                    bg=BG,
-                    fg=INK,
-                    font=FONT,
-                    justify="left",
-                    wraplength=px(620),
-                ).pack(anchor="w")
-        ttk.Button(self, text="Закрыть", command=self.destroy).pack(
-            anchor="e", pady=px((14, 0))
-        )
-        self.bind("<Escape>", lambda e: self.destroy())
-        self.focus_set()
+                text = label("•  " + line, wrap=True)
+                text.setFixedWidth(640)
+                layout.addWidget(text)
+        layout.addSpacing(14)
+        row = hbox()
+        row.addStretch()
+        row.addWidget(button("Закрыть", self.close))
+        layout.addLayout(row)

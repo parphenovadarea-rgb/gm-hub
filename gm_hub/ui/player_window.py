@@ -5,27 +5,30 @@
 (сценарий 12 п. 6.1 ТЗ).
 """
 
-import tkinter as tk
-from tkinter import messagebox, ttk
+from PySide6.QtWidgets import QCheckBox, QComboBox, QGridLayout, QLineEdit, QWidget
 
 from gm_hub.config import now_str, to_short, to_show
 from gm_hub.logic import auth, characters, games, signups
 from gm_hub.logic.errors import ValidationError
 from gm_hub.settings import get_setting, write_setting
 from gm_hub.ui.common import (
-    px,
     Banner,
+    Card,
     ChoiceCards,
-    FONT_HEADING,
     FormGuard,
     MainFrame,
-    card,
+    Segmented,
+    Tab,
+    ask,
+    button,
     field,
     get_text,
+    hbox,
     is_soon,
+    label,
     make_text,
-    segmented,
     set_text,
+    vbox,
 )
 from gm_hub.ui.table import STATUS_PILL, RowTable
 
@@ -69,122 +72,98 @@ class PlayerFrame(MainFrame):
         self.set_badge(1, signups.count_new_decisions(self.app.conn, self.app.user))
 
 
-class Tab(ttk.Frame):
-    """Общая основа вкладки: серый фон и доступ к БД и пользователю."""
-
-    def __init__(self, parent, app):
-        """Создаёт вкладку.
-
-        Args:
-            parent: Область вкладок.
-            app: Приложение.
-        """
-        super().__init__(parent, padding=px(16), style="Page.TFrame")
-        self.app = app
-
-    def status(self, text: str) -> None:
-        """Пишет итоги вкладки в строку внизу окна."""
-        self.master.master.set_status(text)
-
-    def can_leave(self) -> bool:
-        """На вкладке без формы уходить можно всегда."""
-        return True
-
-
 class ShowcaseTab(Tab):
     """Вкладка «Витрина сессий»: выбор Мастера и запись на игру (макет 07)."""
 
-    def __init__(self, parent, app):
+    def __init__(self, main, app):
         """Создаёт список Мастеров, таблицу сессий и форму заявки.
 
         Args:
-            parent: Область вкладок.
+            main: Окно кабинета.
             app: Приложение.
         """
-        super().__init__(parent, app)
+        super().__init__(main, app)
         self.master_id = None
         self.master_key = "master_" + app.user["login"]  # выбор Мастера
 
-        # Слева — выбор Мастера с поиском по имени.
-        left = ttk.Frame(self, style="Page.TFrame")
-        left.pack(side="left", fill="y", padx=px((0, 12)))
         # Над всем — напоминание о ближайшей подтверждённой игре.
-        self.reminder = Banner(self, fill="x", pady=px((0, 12)), before=left)
-        ttk.Label(left, text="Мастер", style="PageBold.TLabel").pack(anchor="w")
-        ttk.Label(left, text="⌕ найти по имени", style="Page.TLabel").pack(anchor="w")
-        self.search = ttk.Entry(left, width=16)
-        self.search.pack(fill="x", pady=px((4, 10)))
-        self.search.bind("<KeyRelease>", lambda e: self.load_masters())
+        self.reminder = Banner()
+        self.box.addWidget(self.reminder)
+        body = hbox(spacing=16)
+        self.box.addLayout(body, 1)
+
+        # Слева — выбор Мастера с поиском по имени.
+        left = vbox(spacing=4)
+        body.addLayout(left)
+        left.addWidget(label("Мастер", "page_bold"))
+        left.addWidget(label("⌕ найти по имени", "page"))
+        self.search = QLineEdit()
+        self.search.textChanged.connect(lambda _text: self.load_masters())
+        left.addWidget(self.search)
+        left.addSpacing(6)
         self.masters = RowTable(
-            left, [("Мастера", 168, True)], header=False, on_select=self.on_master
+            [("Мастера", 200, True)], header=False, on_select=self.on_master
         )
-        self.masters.pack(fill="y", expand=True)
+        self.masters.setFixedWidth(210)
+        left.addWidget(self.masters, 1)
 
-        form = card(self, "Запись на сессию")
-        form.master.pack(side="right", fill="y", padx=px((16, 0)))
-        self.info_title = ttk.Label(
-            form,
-            text="Выберите сессию в таблице",
-            style="Bold.TLabel",
-            width=28,
-            wraplength=px(230),
-        )
-        self.info_title.pack(anchor="w")
-        self.info_when = ttk.Label(form, style="Muted.TLabel")
-        self.info_when.pack(anchor="w")
-        field(form, "Персонаж *")
-        self.characters = ChoiceCards(form)
-        self.characters.pack(fill="x")
-        field(form, "Комментарий Мастеру (необязательно)")
-        self.comment = ttk.Entry(form)
-        self.comment.pack(fill="x")
-        self.send_button = ttk.Button(
-            form, text="Отправить заявку", style="Accent.TButton", command=self.on_send
-        )
-        self.send_button.pack(fill="x", pady=px((14, 0)))
-        self.error = Banner(form, fill="x", pady=px((10, 0)), before=self.send_button)
-        ttk.Label(
-            form,
-            text="Без выбранного персонажа кнопка покажет:\n"
-            "«Выберите персонажа для заявки».",
-            style="Small.TLabel",
-        ).pack(anchor="w", pady=px((10, 0)))
-
-        top = ttk.Frame(self, style="Page.TFrame")
-        top.pack(fill="x")
-        self.master_label = ttk.Label(top, style="PageInk.TLabel", font=FONT_HEADING)
-        self.master_label.pack(side="left")
+        center = vbox(spacing=10)
+        body.addLayout(center, 1)
+        self.master_label = label("", "heading")
+        center.addWidget(self.master_label)
         # Фильтры витрины: период по дате и только сессии со свободными местами.
-        filters = ttk.Frame(self, style="Page.TFrame")
-        filters.pack(fill="x", pady=px((8, 0)))
-        self.period = tk.StringVar(value="Все даты")
-        segmented(
-            filters,
-            [(name, name) for name in games.PERIOD_DAYS],
-            self.period,
-            self.load_games,
-        ).pack(side="left")
-        self.only_free = tk.BooleanVar(value=False)
-        ttk.Checkbutton(
-            filters,
-            text=" Только со свободными местами",
-            variable=self.only_free,
-            command=self.load_games,
-            style="Page.TCheckbutton",
-        ).pack(side="right")
-
+        filters = hbox(spacing=6)
+        center.addLayout(filters)
+        self.period = Segmented(
+            [(name, name) for name in games.PERIOD_DAYS], "Все даты", self.load_games
+        )
+        filters.addWidget(self.period)
+        filters.addStretch()
+        self.only_free = QCheckBox("Только со свободными местами")
+        self.only_free.toggled.connect(lambda _on: self.load_games())
+        filters.addWidget(self.only_free)
         self.table = RowTable(
-            self,
             [
-                ("Сессия", 235, True),
-                ("Когда", 157, False),
-                ("Свободно", 84, False),
+                ("Сессия", 240, True),
+                ("Когда", 150, False),
+                ("Свободно", 90, False),
                 ("Моя заявка", 140, False),
             ],
             on_select=self.on_select,
             on_double=self.on_double,
         )
-        self.table.pack(fill="both", expand=True, pady=px((12, 0)))
+        center.addWidget(self.table, 1)
+
+        form_card = Card("Запись на сессию")
+        form_card.setFixedWidth(320)
+        body.addWidget(form_card)
+        form = form_card.body
+        self.info_title = label("Выберите сессию в таблице", "bold", wrap=True)
+        form.addWidget(self.info_title)
+        self.info_when = label("", "muted", wrap=True)
+        form.addWidget(self.info_when)
+        field(form, "Персонаж *")
+        self.characters = ChoiceCards()
+        form.addWidget(self.characters)
+        field(form, "Комментарий Мастеру (необязательно)")
+        self.comment = QLineEdit()
+        self.comment.returnPressed.connect(self.on_send)
+        form.addWidget(self.comment)
+        form.addSpacing(12)
+        self.error = Banner()
+        form.addWidget(self.error)
+        form.addSpacing(4)
+        self.send_button = button("Отправить заявку", self.on_send, "accent")
+        form.addWidget(self.send_button)
+        form.addSpacing(10)
+        form.addWidget(
+            label(
+                "Без выбранного персонажа кнопка покажет:\n"
+                "«Выберите персонажа для заявки».",
+                "small",
+            )
+        )
+        form.addStretch()
 
     def refresh(self):
         """Перечитывает Мастеров, витрину и список персонажей."""
@@ -198,7 +177,7 @@ class ShowcaseTab(Tab):
         self.error.hide()
         game = signups.next_game(self.app.conn, self.app.user)
         if game:
-            self.reminder.show(
+            self.reminder.show_message(
                 f"Скоро игра: «{game['game_title']}» — "
                 f"{to_show(game['scheduled_at'])}, Мастер {game['gm_name']}, "
                 f"персонаж {game['character_name']}.",
@@ -210,7 +189,7 @@ class ShowcaseTab(Tab):
 
     def load_masters(self):
         """Показывает Мастеров, подходящих под поиск по имени."""
-        found = auth.list_masters(self.app.conn, self.search.get())
+        found = auth.list_masters(self.app.conn, self.search.text())
         self.masters.clear("Мастер не найден.\nПроверьте имя.")
         for master in found:
             count = len(games.list_games(self.app.conn, gm_id=master["id"]))
@@ -251,12 +230,14 @@ class ShowcaseTab(Tab):
         options = list(self.characters.cards)
         if len(options) == 1:
             self.characters.select(options[0])  # единственный персонаж — сразу
-        self.send_button.focus_set()
+        self.send_button.setFocus()
 
     def open_game(self, master_id, game_id):
         """Показывает сессию на витрине (переход из «Мои записи»)."""
         self.master_id = master_id
-        self.search.delete(0, "end")
+        self.search.blockSignals(True)
+        self.search.clear()
+        self.search.blockSignals(False)
         self.load_masters()
         if game_id in self.table.rows:
             self.table.select(game_id)
@@ -264,14 +245,14 @@ class ShowcaseTab(Tab):
     def load_games(self):
         """Показывает предстоящие сессии выбранного Мастера."""
         conn, user = self.app.conn, self.app.user
-        self.info_title.config(text="Выберите сессию в таблице")
-        self.info_when.config(text="")
+        self.info_title.setText("Выберите сессию в таблице")
+        self.info_when.setText("")
         if self.master_id is None:
-            self.master_label.config(text="Мастер не выбран")
+            self.master_label.setText("Мастер не выбран")
             self.table.clear("Выберите Мастера в списке слева.")
             return
         master = next(m for m in auth.list_masters(conn) if m["id"] == self.master_id)
-        self.master_label.config(text=f"Сессии Мастера: {master['full_name']}")
+        self.master_label.setText(f"Сессии Мастера: {master['full_name']}")
 
         my_status = {}  # id сессии -> статусы моих заявок, главный — первым
         order = ["CONFIRMED", "PENDING", "REJECTED"]
@@ -280,15 +261,15 @@ class ShowcaseTab(Tab):
         for statuses in my_status.values():
             statuses.sort(key=order.index)
 
-        days = games.PERIOD_DAYS[self.period.get()]
-        if days or self.only_free.get():
+        days = games.PERIOD_DAYS[self.period.value()]
+        if days or self.only_free.isChecked():
             self.table.clear("Нет сессий под выбранные условия.\nСнимите фильтр.")
         else:
             self.table.clear("У этого Мастера нет предстоящих сессий")
         shown = 0
         for game in games.list_games(conn, gm_id=self.master_id):
             free = games.free_seats(game["max_players"], game["confirmed"])
-            if self.only_free.get() and free <= 0:
+            if self.only_free.isChecked() and free <= 0:
                 continue
             if not games.in_period(game["scheduled_at"], days):
                 continue
@@ -297,7 +278,7 @@ class ShowcaseTab(Tab):
                 title.append(("muted", game["description"]))
             when = [to_short(game["scheduled_at"])]
             if is_soon(game["scheduled_at"]):
-                when.append(("small", "СКОРО"))
+                when.append(("pill", "СКОРО", "warn"))
             statuses = my_status.get(game["id"], [])
             shown += 1
             mine = (
@@ -330,16 +311,14 @@ class ShowcaseTab(Tab):
         """Показывает выбранную сессию в форме заявки."""
         game = games.get_game(self.app.conn, game_id)
         free = games.free_seats(game["max_players"], game["confirmed"])
-        self.info_title.config(text=game["title"])
+        self.info_title.setText(game["title"])
         seats = (
             f"свободно {free} из {game['max_players']}"
             if free > 0
             else "мест нет — заявка встанет в очередь"
         )
-        self.info_when.config(text=f"{to_show(game['scheduled_at'])} · {seats}")
-        self.send_button.config(
-            text="Отправить заявку" if free > 0 else "Встать в очередь"
-        )
+        self.info_when.setText(f"{to_show(game['scheduled_at'])} · {seats}")
+        self.send_button.setText("Отправить заявку" if free > 0 else "Встать в очередь")
         self.error.hide()
 
     def on_send(self):
@@ -351,17 +330,16 @@ class ShowcaseTab(Tab):
                 self.app.user,
                 game_id,
                 self.characters.get(),
-                self.comment.get(),
+                self.comment.text(),
             )
         except ValidationError as error:
-            self.error.show(error.message)
+            self.error.show_message(error.message)
             return
         title = games.get_game(self.app.conn, game_id)["title"]
-        self.comment.delete(0, "end")
+        self.comment.clear()
         # Как в прототипе: после отправки открываются «Мои записи» с сообщением.
-        main = self.app.screen
-        main.show_tab(1)
-        main.tabs[1].banner.show(
+        self.main.show_tab(1)
+        self.main.tabs[1].banner.show_message(
             f"Заявка на «{title}» отправлена. Статус: на рассмотрении.", "ok"
         )
 
@@ -371,46 +349,41 @@ class MySignupsTab(Tab):
 
     PERIODS = [("Предстоящие", "future"), ("Прошедшие", "past")]
 
-    def __init__(self, parent, app):
+    def __init__(self, main, app):
         """Создаёт таблицу заявок.
 
         Args:
-            parent: Область вкладок.
+            main: Окно кабинета.
             app: Приложение.
         """
-        super().__init__(parent, app)
-        top = ttk.Frame(self, style="Page.TFrame")
-        top.pack(fill="x")
-        self.banner = Banner(self, fill="x", pady=px((0, 12)), before=top)
-        self.period = tk.StringVar(value="future")
-        segmented(top, self.PERIODS, self.period, self.refresh).pack(side="left")
-        ttk.Button(
-            top,
-            text="Отозвать заявку",
-            style="Danger.TButton",
-            command=self.on_withdraw,
-        ).pack(side="right")
+        super().__init__(main, app)
+        self.banner = Banner()
+        self.box.addWidget(self.banner)
+        top = hbox(spacing=6)
+        self.box.addLayout(top)
+        self.period = Segmented(self.PERIODS, "future", self.refresh)
+        top.addWidget(self.period)
+        top.addStretch()
+        top.addWidget(button("Отозвать заявку", self.on_withdraw, "danger"))
         self.table = RowTable(
-            self,
             [
-                ("Сессия", 291, True),
-                ("Когда", 157, False),
-                ("Персонаж", 123, False),
-                ("Мой комментарий", 202, True),
-                ("Статус", 168, False),
-                ("Решение", 112, False),
+                ("Сессия", 290, True),
+                ("Когда", 150, False),
+                ("Персонаж", 120, False),
+                ("Мой комментарий", 200, True),
+                ("Статус", 170, False),
+                ("Решение", 120, False),
             ],
             on_double=self.on_double,
         )
-        self.table.pack(fill="both", expand=True, pady=px((12, 0)))
+        self.box.addWidget(self.table, 1)
         self.rows = {}  # id заявки -> строка заявки
 
     def on_double(self, signup_id):
         """Двойной щелчок по записи: открыть её сессию на витрине."""
         row = self.rows[signup_id]
-        main = self.master.master
-        main.show_tab(0)
-        main.tabs[0].open_game(row["gm_id"], row["game_id"])
+        self.main.show_tab(0)
+        self.main.tabs[0].open_game(row["gm_id"], row["game_id"])
 
     def refresh(self):
         """Перечитывает заявки текущего Игрока (сценарий 14)."""
@@ -421,12 +394,12 @@ class MySignupsTab(Tab):
         rows = signups.list_for_player(self.app.conn, self.app.user)
         self.rows = {row["id"]: row for row in rows}
         now = now_str()
-        # Решения, принятые после прошлого просмотра, отмечаются «НОВОЕ».
+        # Решения, принятые после прошлого просмотра, отмечаются «новое».
         seen = signups.seen_at(self.app.conn, self.app.user) or ""
         queues = {}  # id сессии -> номера заявок в листе ожидания
         for row in rows:
             upcoming = row["scheduled_at"] >= now
-            if upcoming != (self.period.get() == "future"):
+            if upcoming != (self.period.value() == "future"):
                 continue
             decision = [("muted", to_short(row["decided_at"]))]
             if row["decided_at"] and row["decided_at"] > seen:
@@ -486,7 +459,7 @@ class MySignupsTab(Tab):
         signup_id = self.table.selected
         if signup_id is None:
             raise ValidationError("Заявка", "Выберите заявку в таблице.")
-        if messagebox.askyesno("Мои записи", "Отозвать выбранную заявку?"):
+        if ask(self, "Мои записи", "Отозвать выбранную заявку?"):
             signups.withdraw_signup(self.app.conn, self.app.user, signup_id)
             self.refresh()
 
@@ -494,65 +467,65 @@ class MySignupsTab(Tab):
 class CharactersTab(FormGuard, Tab):
     """Вкладка «Мои персонажи»: карточки персонажей (макет 09)."""
 
-    def __init__(self, parent, app):
+    def __init__(self, main, app):
         """Создаёт список персонажей и форму карточки.
 
         Args:
-            parent: Область вкладок.
+            main: Окно кабинета.
             app: Приложение.
         """
-        super().__init__(parent, app)
+        super().__init__(main, app, "h")
         self.character_id = None
+        self.level = 1
 
-        left = card(self, "Персонажи", action=("+ Новый", self.on_new))
-        left.master.pack(side="left", fill="y")
-        left.configure(padding=0)
+        left = Card("Персонажи", action=("+ Новый", self.on_new), padding=0)
+        left.setFixedWidth(310)
+        self.box.addWidget(left)
         self.table = RowTable(
-            left,
-            [("Персонаж", 269, True)],
+            [("Персонаж", 300, True)],
             header=False,
             on_select=self.on_select,
-            border=False,
+            flat=True,
         )
-        self.table.pack(fill="both", expand=True)
+        left.body.addWidget(self.table, 1)
 
-        form = card(self)
-        form.master.pack(side="left", fill="both", expand=True, padx=px((16, 0)))
-        row = ttk.Frame(form)
-        row.pack(fill="x")
-        boxes = [ttk.Frame(row) for _ in range(3)]
+        form_card = Card()
+        self.box.addWidget(form_card, 1)
+        form = form_card.body
+        row = QGridLayout()
+        row.setHorizontalSpacing(12)
+        boxes = [QWidget() for _ in range(3)]
+        layouts = [vbox(box, spacing=2) for box in boxes]
         for index, box in enumerate(boxes):
-            box.grid(
-                row=0, column=index, sticky="ew", padx=px((0, 12)) if index < 2 else 0
-            )
-        row.columnconfigure((0, 1, 2), weight=1, uniform="col")
-        field(boxes[0], "Имя *")
-        self.name = ttk.Entry(boxes[0])
-        self.name.pack(fill="x")
-        field(boxes[1], "Раса")
-        self.race = ttk.Combobox(boxes[1], values=characters.RACES)
-        self.race.pack(fill="x")
-        field(boxes[2], "Класс")
-        self.cls = ttk.Combobox(boxes[2], values=characters.CLASSES)
-        self.cls.pack(fill="x")
+            row.addWidget(box, 0, index)
+            row.setColumnStretch(index, 1)  # три поля одинаковой ширины
+        field(layouts[0], "Имя *")
+        self.name = QLineEdit()
+        layouts[0].addWidget(self.name)
+        field(layouts[1], "Раса")
+        self.race = QComboBox()
+        self.race.setEditable(True)
+        self.race.addItems(characters.RACES)
+        layouts[1].addWidget(self.race)
+        field(layouts[2], "Класс")
+        self.cls = QComboBox()
+        self.cls.setEditable(True)
+        self.cls.addItems(characters.CLASSES)
+        layouts[2].addWidget(self.cls)
+        form.addLayout(row)
         field(form, "Предыстория")
-        self.backstory = make_text(form, height=7)
-        self.backstory.pack(fill="both", expand=True)
-        buttons = ttk.Frame(form)
-        buttons.pack(fill="x", pady=px((10, 0)))
-        ttk.Button(
-            buttons,
-            text="Удалить персонажа",
-            style="Danger.TButton",
-            command=self.on_delete,
-        ).pack(side="left")
-        ttk.Button(
-            buttons, text="Сохранить", style="Accent.TButton", command=self.on_save
-        ).pack(side="right")
-        ttk.Button(buttons, text="Отменить", command=self.reload).pack(
-            side="right", padx=px(6)
-        )
-        self.error = Banner(form, fill="x", pady=px((10, 0)), before=buttons)
+        self.backstory = make_text(height=7)
+        form.addWidget(self.backstory, 1)
+        form.addSpacing(10)
+        self.error = Banner()
+        form.addWidget(self.error)
+        buttons = hbox(spacing=6)
+        buttons.setContentsMargins(0, 10, 0, 0)
+        buttons.addWidget(button("Удалить персонажа", self.on_delete, "danger"))
+        buttons.addStretch()
+        buttons.addWidget(button("Отменить", self.reload))
+        buttons.addWidget(button("Сохранить", self.on_save, "accent"))
+        form.addLayout(buttons)
         self.clear_form()
 
     def refresh(self):
@@ -578,24 +551,24 @@ class CharactersTab(FormGuard, Tab):
     def clear_form(self):
         """Очищает форму для нового персонажа."""
         self.character_id = None
-        self.name.delete(0, "end")
-        self.race.set("")
-        self.cls.set("")
+        self.name.clear()
+        self.race.setCurrentText("")
+        self.cls.setCurrentText("")
         # Уровень в карточке не выбирается: у нового персонажа он 1 (в БД поле
         # обязательное), у существующего сохраняется прежний.
         self.level = 1
         set_text(self.backstory, "")
         self.error.hide()
         self.refresh()
-        self.name.focus()
+        self.name.setFocus()
         self.remember()
 
     def form_state(self):
         """Значения полей карточки — чтобы заметить несохранённые правки."""
         return (
-            self.name.get(),
-            self.race.get(),
-            self.cls.get(),
+            self.name.text(),
+            self.race.currentText(),
+            self.cls.currentText(),
             get_text(self.backstory),
         )
 
@@ -624,10 +597,9 @@ class CharactersTab(FormGuard, Tab):
         if self.character_id is None:
             return
         c = characters.get_character(self.app.conn, self.character_id)
-        self.name.delete(0, "end")
-        self.name.insert(0, c["name"])
-        self.race.set(c["race"] or "")
-        self.cls.set(c["class"] or "")
+        self.name.setText(c["name"])
+        self.race.setCurrentText(c["race"] or "")
+        self.cls.setCurrentText(c["class"] or "")
         self.level = c["level"]
         set_text(self.backstory, c["backstory"])
         self.error.hide()
@@ -645,30 +617,30 @@ class CharactersTab(FormGuard, Tab):
             self.character_id = characters.save_character(
                 self.app.conn,
                 self.app.user,
-                self.name.get(),
-                self.race.get(),
-                self.cls.get(),
+                self.name.text(),
+                self.race.currentText(),
+                self.cls.currentText(),
                 self.level,
                 get_text(self.backstory),
                 self.character_id,
             )
         except ValidationError as error:
-            self.error.show(error.message)
+            self.error.show_message(error.message)
             return
-        self.error.show("Карточка персонажа сохранена.", "ok")
+        self.error.show_message("Карточка персонажа сохранена.", "ok")
         self.remember()
         self.refresh()
 
     def on_delete(self):
         """Удаляет персонажа, если у него нет активных заявок (сценарий 13)."""
         if self.character_id is None:
-            self.error.show("Выберите персонажа в списке.")
+            self.error.show_message("Выберите персонажа в списке.")
             return
-        if not messagebox.askyesno("Мои персонажи", "Удалить выбранного персонажа?"):
+        if not ask(self, "Мои персонажи", "Удалить выбранного персонажа?"):
             return
         try:
             characters.delete_character(self.app.conn, self.app.user, self.character_id)
         except ValidationError as error:
-            self.error.show(error.message)
+            self.error.show_message(error.message)
             return
         self.clear_form()

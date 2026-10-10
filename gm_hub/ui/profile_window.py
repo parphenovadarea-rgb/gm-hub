@@ -1,13 +1,13 @@
 """Окно «Профиль»: изменение ФИО и пароля, удаление аккаунта."""
 
-import tkinter as tk
-from tkinter import messagebox, ttk
+from PySide6.QtWidgets import QCheckBox, QDialog, QGridLayout, QLineEdit, QWidget
 
 from gm_hub.logic import auth
-from gm_hub.ui.common import BG, LARGE_TEXT, field, px
+from gm_hub.ui import style
+from gm_hub.ui.common import ask, button, field, hbox, info, label, vbox
 
 
-class ProfileWindow(tk.Toplevel):
+class ProfileWindow(QDialog):
     """Отдельное окно профиля текущего пользователя."""
 
     def __init__(self, app):
@@ -16,71 +16,62 @@ class ProfileWindow(tk.Toplevel):
         Args:
             app: Приложение (app.conn, app.user).
         """
-        super().__init__(app, bg=BG, padx=px(20), pady=px(16))
+        super().__init__(app)
         self.app = app
-        self.title("Профиль")
-        self.resizable(False, False)
-        # Окно поверх главного; пока оно открыто, главное недоступно.
-        self.transient(app)
-        self.grab_set()
+        self.setWindowTitle("Профиль")
+        layout = vbox(self, margins=(22, 16, 22, 18), spacing=2)
 
         user = app.user
-        ttk.Label(self, text="Профиль", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(
-            self,
-            text=f"Логин: {user['login']}  ·  {auth.ROLE_NAMES[user['role']]}",
-            style="Muted.TLabel",
-        ).pack(anchor="w", pady=px((0, 4)))
-
-        self.entries = {}
-        for name, show in (("ФИО *", ""), ("Текущий пароль *", "●")):
-            field(self, name)
-            self.entries[name] = ttk.Entry(self, width=36, show=show)
-            self.entries[name].pack(fill="x")
-        row = ttk.Frame(self)
-        row.pack(fill="x")
-        for column, name in enumerate(("Новый пароль", "Повтор нового")):
-            box = ttk.Frame(row)
-            box.grid(
-                row=0, column=column, sticky="ew", padx=px((0, 8)) if column == 0 else 0
+        layout.addWidget(label("Профиль", "title"))
+        layout.addWidget(
+            label(
+                f"Логин: {user['login']}  ·  {auth.ROLE_NAMES[user['role']]}", "muted"
             )
-            field(box, name)
-            self.entries[name] = ttk.Entry(box, show="●")
-            self.entries[name].pack(fill="x")
-        row.columnconfigure((0, 1), weight=1, uniform="half")
-        self.entries["ФИО *"].insert(0, user["full_name"])
-        ttk.Label(
-            self, text="Новый пароль можно не заполнять.", style="Small.TLabel"
-        ).pack(anchor="w", pady=px((4, 0)))
-        # Настройка вида для этого компьютера: окно пересоздаётся сразу.
-        self.large_text = tk.BooleanVar(value=LARGE_TEXT)
-        ttk.Checkbutton(
-            self,
-            text=" Крупный текст (шрифт и отступы больше на 15 %)",
-            variable=self.large_text,
-            command=self.on_large_text,
-        ).pack(anchor="w", pady=px((12, 0)))
+        )
+        self.entries = {}
+        for name, hidden in (("ФИО *", False), ("Текущий пароль *", True)):
+            field(layout, name)
+            self.entries[name] = QLineEdit()
+            if hidden:
+                self.entries[name].setEchoMode(QLineEdit.Password)
+            layout.addWidget(self.entries[name])
+        row = QGridLayout()
+        row.setHorizontalSpacing(8)
+        for column, name in enumerate(("Новый пароль", "Повтор нового")):
+            box = QWidget()
+            inner = vbox(box, spacing=2)
+            field(inner, name)
+            self.entries[name] = QLineEdit()
+            self.entries[name].setEchoMode(QLineEdit.Password)
+            inner.addWidget(self.entries[name])
+            row.addWidget(box, 0, column)
+        layout.addLayout(row)
+        self.entries["ФИО *"].setText(user["full_name"])
+        self.entries["ФИО *"].setMinimumWidth(380)
+        layout.addSpacing(4)
+        layout.addWidget(label("Новый пароль можно не заполнять.", "small"))
+        layout.addSpacing(10)
+        # Настройка вида для этого компьютера: окно перерисовывается сразу.
+        self.large_text = QCheckBox("Крупный текст (шрифт больше на 15 %)")
+        self.large_text.setChecked(style.LARGE_TEXT)
+        self.large_text.toggled.connect(self.on_large_text)
+        layout.addWidget(self.large_text)
+        layout.addSpacing(14)
 
-        buttons = ttk.Frame(self)
-        buttons.pack(fill="x", pady=px((14, 0)))
-        ttk.Button(
-            buttons,
-            text="Удалить аккаунт",
-            style="Danger.TButton",
-            command=self.on_delete,
-        ).pack(side="left")
-        ttk.Button(
-            buttons, text="Сохранить", style="Accent.TButton", command=self.on_save
-        ).pack(side="right")
+        buttons = hbox(spacing=6)
+        buttons.addWidget(button("Удалить аккаунт", self.on_delete, "danger"))
+        buttons.addStretch()
+        buttons.addWidget(button("Сохранить", self.on_save, "accent"))
+        layout.addLayout(buttons)
 
-    def on_large_text(self):
-        """Включает или выключает крупный текст и пересоздаёт окно."""
-        self.destroy()
-        self.app.set_large_text(self.large_text.get())
+    def on_large_text(self, on: bool):
+        """Включает или выключает крупный текст и перерисовывает окно."""
+        self.close()
+        self.app.set_large_text(on)
 
     def value(self, name: str) -> str:
         """Возвращает текст поля по его подписи."""
-        return self.entries[name].get()
+        return self.entries[name].text()
 
     def on_save(self):
         """Сохраняет ФИО и новый пароль."""
@@ -92,22 +83,20 @@ class ProfileWindow(tk.Toplevel):
             self.value("Новый пароль"),
             self.value("Повтор нового"),
         )
-        messagebox.showinfo("Профиль", "Изменения сохранены.", parent=self)
-        self.destroy()
+        info(self, "Профиль", "Изменения сохранены.")
+        self.close()
         self.app.open_main(user)  # заново открываем кабинет с новым ФИО в шапке
 
     def on_delete(self):
         """Удаляет аккаунт после подтверждения и возвращает к окну входа."""
-        if not messagebox.askyesno(
-            "Удаление аккаунта",
-            "Удалить аккаунт без возможности восстановления?",
-            parent=self,
+        if not ask(
+            self, "Удаление аккаунта", "Удалить аккаунт без возможности восстановления?"
         ):
             return
         auth.delete_account(
             self.app.conn, self.app.user, self.value("Текущий пароль *")
         )
-        self.destroy()
+        self.close()
         if auth.has_users(self.app.conn):
             self.app.logout()
         else:

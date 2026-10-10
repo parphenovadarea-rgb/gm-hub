@@ -1,0 +1,2 @@
+# Библиотека окон программы (Qt для Python).
+PySide6-Essentials==6.12.0
