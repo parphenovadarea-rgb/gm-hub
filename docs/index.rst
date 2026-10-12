@@ -29,6 +29,7 @@ Game Master Hub — документация
    architecture
    functionality
    api
+   launch_guide
    operator_guide
    programmer_guide
    sysprog_guide

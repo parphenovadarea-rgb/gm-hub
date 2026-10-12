@@ -8,3 +8,5 @@ dist/
 *.spec
 *.log
 docs/_build/
+.coverage
+htmlcov/
