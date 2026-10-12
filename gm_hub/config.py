@@ -11,6 +11,9 @@ if getattr(sys, "frozen", False):
 else:
     APP_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = APP_DIR / "gm_hub.db"
+# Непредвиденные ошибки записываются в журнал рядом с БД (в собранной
+# программе консоли нет, поэтому сообщение об ошибке иначе пропало бы).
+LOG_PATH = APP_DIR / "gm_hub.log"
 
 # Формат хранения даты и времени в БД (п. 4.3.2 ТЗ).
 DATETIME_FORMAT = "%Y-%m-%d %H:%M"

@@ -1,11 +1,12 @@
 """Главное окно приложения: переключает экраны входа, регистрации и кабинетов."""
 
+import logging
 import sqlite3
-import traceback
 
 from PySide6.QtCore import QByteArray
 from PySide6.QtWidgets import QApplication, QFrame, QMainWindow, QScrollArea
 
+from gm_hub.config import LOG_PATH
 from gm_hub.logic import auth
 from gm_hub.logic.errors import AccessError, ValidationError
 from gm_hub.settings import get_setting, write_setting
@@ -71,6 +72,10 @@ class App(QMainWindow):
         self.setWindowTitle(f"Game Master Hub — {title}")
         if self.isMaximized():
             self.showNormal()
+        # при крупном тексте окно и его минимальный размер больше на 15 %
+        zoom = style.pt(100) / 100
+        size = (round(size[0] * zoom), round(size[1] * zoom))
+        min_size = (round(min_size[0] * zoom), round(min_size[1] * zoom))
         self.resize(*size)
         self.screen = screen_class(self)
         if card_width:
@@ -88,6 +93,10 @@ class App(QMainWindow):
             widget = page
         else:
             widget = self.screen
+        # окно открывается не меньше, чем нужно содержимому (важно при крупном тексте)
+        need = widget.minimumSizeHint()
+        min_size = (max(min_size[0], need.width()), max(min_size[1], need.height()))
+        self.resize(max(size[0], min_size[0] + 4), max(size[1], min_size[1] + 4))
         widget.setMinimumSize(*min_size)
         old = self.scroll.takeWidget()
         self.scroll.setWidget(widget)
@@ -214,5 +223,12 @@ class App(QMainWindow):
         elif isinstance(exc, sqlite3.Error):
             info(parent, "Ошибка базы данных", f"Операция не выполнена: {exc}")
         else:
-            traceback.print_exception(exc_type, exc, tb)
-            info(parent, "Ошибка", f"Непредвиденная ошибка: {exc}")
+            logging.getLogger("gm_hub").error(
+                "Непредвиденная ошибка", exc_info=(exc_type, exc, tb)
+            )
+            info(
+                parent,
+                "Ошибка",
+                f"Непредвиденная ошибка: {exc}\n\nПодробности записаны в файл "
+                f"{LOG_PATH.name} рядом с программой.",
+            )

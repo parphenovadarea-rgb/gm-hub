@@ -788,6 +788,8 @@ class MainFrame(QFrame):
             tab_button = button(title)
             tab_button.setProperty("kind", "tab")
             tab_button.setCheckable(True)
+            # вкладка никогда не сжимается: название всегда видно целиком
+            tab_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
             tab_button.clicked.connect(lambda _=False, i=index: self.show_tab(i))
             group.addButton(tab_button)
             tabs_row.addWidget(tab_button)
