@@ -7,3 +7,4 @@ build/
 dist/
 *.spec
 *.log
+docs/_build/

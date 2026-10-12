@@ -12,24 +12,36 @@ SETTINGS_PATH = DB_PATH.parent / "settings.json"
 MAX_LOGINS = 5  # сколько последних логинов подсказывать
 
 
-def read_settings(path=SETTINGS_PATH) -> dict:
+def settings_file(path=None):
+    """Возвращает путь к файлу настроек.
+
+    Путь берётся в момент вызова, поэтому в тестах его можно подменить, не
+    затрагивая настоящий settings.json.
+
+    Args:
+        path: Свой путь или None — тогда SETTINGS_PATH.
+    """
+    return SETTINGS_PATH if path is None else path
+
+
+def read_settings(path=None) -> dict:
     """Читает все настройки.
 
     Args:
-        path: Путь к settings.json.
+        path: Путь к settings.json (по умолчанию — файл рядом с БД).
 
     Returns:
         Словарь настроек (пустой, если файла нет или он испорчен).
     """
     try:
-        with open(path, encoding="utf-8") as file:
+        with open(settings_file(path), encoding="utf-8") as file:
             data = json.load(file)
     except (OSError, ValueError):
         return {}
     return data if isinstance(data, dict) else {}
 
 
-def write_setting(key: str, value, path=SETTINGS_PATH) -> None:
+def write_setting(key: str, value, path=None) -> None:
     """Меняет одну настройку, не трогая остальные.
 
     Args:
@@ -39,11 +51,11 @@ def write_setting(key: str, value, path=SETTINGS_PATH) -> None:
     """
     data = read_settings(path)
     data[key] = value
-    with open(path, "w", encoding="utf-8") as file:
+    with open(settings_file(path), "w", encoding="utf-8") as file:
         json.dump(data, file, ensure_ascii=False)
 
 
-def get_setting(key: str, default=None, path=SETTINGS_PATH):
+def get_setting(key: str, default=None, path=None):
     """Возвращает одну настройку (или default, если её ещё нет).
 
     Args:
@@ -54,13 +66,13 @@ def get_setting(key: str, default=None, path=SETTINGS_PATH):
     return read_settings(path).get(key, default)
 
 
-def recent_logins(path=SETTINGS_PATH) -> list:
+def recent_logins(path=None) -> list:
     """Возвращает логины, с которыми входили на этом компьютере (новые первыми)."""
     logins = read_settings(path).get("logins", [])
     return [login for login in logins if isinstance(login, str)][:MAX_LOGINS]
 
 
-def remember_login(login: str, path=SETTINGS_PATH) -> None:
+def remember_login(login: str, path=None) -> None:
     """Запоминает логин после успешного входа (он встаёт первым в списке).
 
     Args:
@@ -72,7 +84,7 @@ def remember_login(login: str, path=SETTINGS_PATH) -> None:
     write_setting("logins", ([login] + others)[:MAX_LOGINS], path)
 
 
-def forget_login(login: str, path=SETTINGS_PATH) -> None:
+def forget_login(login: str, path=None) -> None:
     """Убирает логин из подсказок.
 
     Args:
@@ -83,7 +95,7 @@ def forget_login(login: str, path=SETTINGS_PATH) -> None:
     write_setting("logins", left, path)
 
 
-def matching_logins(typed: str, path=SETTINGS_PATH) -> list:
+def matching_logins(typed: str, path=None) -> list:
     """Подсказки для введённого текста: логины, в которых он встречается.
 
     Args:
