@@ -5,7 +5,7 @@
 новые окна сразу рисуются в новых цветах.
 """
 
-from gm_hub.settings import SETTINGS_PATH, read_settings, write_setting
+from gm_hub.settings import read_settings, write_setting
 
 LIGHT = {
     "accent": "#285331",  # тёмно-зелёные кнопки
@@ -78,7 +78,7 @@ DARK = {
 }
 
 
-def load_theme(path=SETTINGS_PATH) -> str:
+def load_theme(path=None) -> str:
     """Читает выбранную тему из файла настроек.
 
     Args:
@@ -90,7 +90,7 @@ def load_theme(path=SETTINGS_PATH) -> str:
     return "dark" if read_settings(path).get("theme") == "dark" else "light"
 
 
-def save_theme(theme: str, path=SETTINGS_PATH) -> None:
+def save_theme(theme: str, path=None) -> None:
     """Сохраняет выбранную тему (запомненные логины в файле остаются).
 
     Args:
