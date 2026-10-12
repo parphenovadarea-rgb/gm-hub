@@ -7,3 +7,10 @@ requires-python = ">=3.10"
 [tool.black]
 line-length = 88
 target-version = ["py310"]
+
+[tool.coverage.run]
+source = ["gm_hub"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
