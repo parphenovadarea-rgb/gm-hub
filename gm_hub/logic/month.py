@@ -43,7 +43,7 @@ def games_by_day(games) -> dict:
         games: Строки сессий с полем scheduled_at.
 
     Returns:
-        Словарь {дата: [сессии этого дня по времени]}.
+        dict: Словарь {дата: [сессии этого дня по времени]}.
     """
     days = {}
     for game in sorted(games, key=lambda g: g["scheduled_at"]):
