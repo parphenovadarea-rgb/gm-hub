@@ -815,8 +815,15 @@ class MainFrame(QFrame):
         self.show_tab(saved if isinstance(saved, int) and saved < len(tabs) else 0)
         # Раз в 30 секунд обновляются числа на вкладках (новые заявки, решения).
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_badges)
+        self.timer.timeout.connect(self.on_timer)
         self.timer.start(30000)
+
+    def on_timer(self) -> None:
+        """Раз в 30 секунд обновляет числа, пока этот кабинет открыт."""
+        if self.app.screen is self and self.app.user is not None:
+            self.update_badges()
+        else:
+            self.timer.stop()  # кабинет уже закрыт (выход, смена темы)
 
     def update_badges(self) -> None:
         """Обновляет числа на вкладках; переопределяется в окнах."""
