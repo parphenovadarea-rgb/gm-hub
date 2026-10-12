@@ -26,7 +26,7 @@ def now_str() -> str:
     """Возвращает текущие дату и время в формате БД.
 
     Returns:
-        Строка вида «2026-10-04 18:00».
+        str: Строка вида «2026-10-04 18:00».
     """
     return datetime.now().strftime(DATETIME_FORMAT)
 
@@ -38,7 +38,7 @@ def to_show(db_value: str | None) -> str:
         db_value: Дата в формате БД или None.
 
     Returns:
-        Строка вида «04.10.2026 18:00» или «—», если даты нет.
+        str: Строка вида «04.10.2026 18:00» или «—», если даты нет.
     """
     if not db_value:
         return "—"
@@ -52,7 +52,7 @@ def to_short(db_value: str | None) -> str:
         db_value: Дата в формате БД или None.
 
     Returns:
-        Строка вида «04.10 18:00» или «—», если даты нет.
+        str: Строка вида «04.10 18:00» или «—», если даты нет.
     """
     if not db_value:
         return "—"

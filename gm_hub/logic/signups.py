@@ -335,7 +335,7 @@ def queue_positions(conn, game_id) -> dict:
         game_id: id сессии.
 
     Returns:
-        Словарь {id заявки: номер в очереди}; пустой, если места есть.
+        dict: Словарь {id заявки: номер в очереди}; пустой, если места есть.
     """
     game = get_game(conn, game_id)
     if game is None or free_seats(game["max_players"], game["confirmed"]) > 0:
