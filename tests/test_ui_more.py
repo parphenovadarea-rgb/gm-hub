@@ -283,9 +283,9 @@ class DialogsTest(UiCase):
         self.assertTrue(first.isVisible())
         self.app.show_help()
         self.assertIsNot(self.app.help, first)
-        self.assertIn(
-            "Расписание", [w.text() for w in self.app.help.findChildren(QLabel)]
-        )
+        texts = [w.text() for w in self.app.help.findChildren(QLabel)]
+        self.assertIn("Расписание", texts)
+        self.assertTrue(any("mbufimuka" in t for t in texts))
         self.app.help.close()
 
     def test_login_hints(self):

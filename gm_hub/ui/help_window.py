@@ -4,6 +4,8 @@ from PySide6.QtWidgets import QDialog
 
 from gm_hub.ui.common import button, hbox, label, vbox
 
+AUTHOR = "Game Master Hub 1.0 · Автор: mbufimuka"
+
 COMMON = [
     ("Горячие клавиши", [
         "F1 — эта справка",
@@ -110,6 +112,7 @@ class HelpWindow(QDialog):
                 layout.addWidget(text)
         layout.addSpacing(14)
         row = hbox()
+        row.addWidget(label(AUTHOR, "muted"))
         row.addStretch()
         row.addWidget(button("Закрыть", self.close))
         layout.addLayout(row)
