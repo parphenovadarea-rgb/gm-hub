@@ -6,5 +6,3 @@ flake8==7.1.1
 pre-commit==3.8.0
 pyinstaller==6.22.3  # сборка GameMasterHub.exe
 coverage==7.16.2  # покрытие кода тестами
-sphinx==9.1.0  # документация
-sphinx-rtd-theme==3.1.0
